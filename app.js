@@ -76,6 +76,7 @@ function itemEl(i) {
   li.querySelector('.cat span').textContent = i.category;
   const memo = li.querySelector('.memo');
   const bits = [];
+  if (i.type === 'out' && i.time) bits.push(i.time);
   if (i.type === 'out' && PAY[i.pay]) bits.push(PAY[i.pay]);
   if (i.memo) bits.push(i.memo);
   memo.textContent = bits.join(' · ');
@@ -89,7 +90,13 @@ function itemEl(i) {
   li.onclick = () => openDialog(i);
   return li;
 }
-const byNewest = (a, b) => b.date.localeCompare(a.date) || b.id - a.id;
+// 같은 날 안에서는 늦은 시각이 위로 (시각이 없는 내역은 아래로)
+const byNewest = (a, b) =>
+  b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || '') || b.id - a.id;
+function nowTime() {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function render() {
   autoApplyFixed();
@@ -551,7 +558,12 @@ function openDialog(item) {
   const mood = (item && item.mood) || '';
   document.querySelectorAll('input[name=mood]').forEach((r) => (r.checked = r.value === mood));
   $('amount').value = item ? item.amount.toLocaleString('ko-KR') : '';
-  $('date').value = item ? item.date : (listMode === 'cal' && selDay) || today();
+  const date = item ? item.date : (listMode === 'cal' && selDay) || today();
+  $('date').value = date;
+  // 새 내역은 지금 시각을 채워 두고(오늘 날짜일 때만), 예전 내역은 있는 값 그대로 둔다
+  $('time').value = item ? item.time || '' : date === today() ? nowTime() : '';
+  $('time').dataset.auto = item ? '0' : '1';
+  $('time').hidden = type !== 'out';
   $('memo').value = item ? item.memo : '';
   $('dlg').showModal();
   if (!item) $('amount').focus();
@@ -562,7 +574,14 @@ document.querySelectorAll('input[name=type]').forEach((r) =>
     fillCategories('category', r.value);
     $('pay-seg').hidden = r.value !== 'out';
     $('mood-seg').hidden = r.value !== 'out';
+    $('time').hidden = r.value !== 'out';
   }));
+
+// 시각을 직접 고치기 전까지는 날짜에 맞춰 자동값을 유지한다 (지난 날짜를 입력할 때 지금 시각이 남지 않게)
+$('date').addEventListener('change', () => {
+  if ($('time').dataset.auto === '1') $('time').value = $('date').value === today() ? nowTime() : '';
+});
+$('time').addEventListener('input', () => { $('time').dataset.auto = '0'; });
 
 $('form').addEventListener('submit', () => {
   const amount = Number($('amount').value.replace(/\D/g, ''));
@@ -576,6 +595,7 @@ $('form').addEventListener('submit', () => {
     pay: type === 'out' && payEl ? payEl.value : undefined,
     mood: type === 'out' ? document.querySelector('input[name=mood]:checked').value || undefined : undefined,
     date: $('date').value,
+    time: type === 'out' ? $('time').value || undefined : undefined,
     memo: $('memo').value.trim(),
   };
   if (data.pay) { settings.lastPay = data.pay; saveSettings(); }
@@ -682,8 +702,8 @@ function download(name, text, type) {
 $('export-csv').onclick = () => {
   const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
   const rows = [...items].sort((a, b) => a.date.localeCompare(b.date))
-    .map((i) => [i.date, i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', MOODS[i.mood] || '', i.amount, i.memo].map(esc).join(','));
-  download('가계부.csv', '﻿날짜,구분,카테고리,결제수단,소비성격,금액,메모\n' + rows.join('\n'), 'text/csv');
+    .map((i) => [i.date, i.time || '', i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', MOODS[i.mood] || '', i.amount, i.memo].map(esc).join(','));
+  download('가계부.csv', '﻿날짜,시각,구분,카테고리,결제수단,소비성격,금액,메모\n' + rows.join('\n'), 'text/csv');
 };
 $('export-json').onclick = () =>
   download('가계부-백업.json', JSON.stringify({ version: 2, items, settings }), 'application/json');

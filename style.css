@@ -168,7 +168,9 @@ dialog {
 }
 dialog::backdrop { background: rgba(0,0,0,.5); }
 dialog h2 { margin-top: 0; }
-form input[type=text], form input[type=date], form select {
+.two { display: flex; gap: 8px; }
+.two input { flex: 1; min-width: 0; }
+form input[type=text], form input[type=date], form input[type=time], form select {
   width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--bg);
 }

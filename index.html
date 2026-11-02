@@ -140,7 +140,10 @@
         <label><input type="radio" name="mood" value="regret"><span>후회</span></label>
       </div>
     </div>
-    <input id="date" type="date" required>
+    <div class="two">
+      <input id="date" type="date" required>
+      <input id="time" type="time" aria-label="시각">
+    </div>
     <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <div class="row">
       <button type="button" id="del" class="danger" hidden>삭제</button>
