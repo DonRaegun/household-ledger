@@ -1111,7 +1111,16 @@ $('np-tip').addEventListener('click', (e) => {
 });
 
 // ---- 내보내기 / 백업 ----
+// 안드로이드 앱 안의 웹뷰는 <a download>로 파일을 받지 못해서(눌러도 아무 일도 없다), 공유 창으로 내보낸다.
+// 캘린더 파일(.ics)은 공유 창 대신 캘린더 앱으로 바로 연다. 일반 브라우저에서는 아래 기존 방식 그대로다.
+const FX = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+  ? window.Capacitor.Plugins.FileExport : null;
 function download(name, text, type) {
+  if (FX) {
+    FX.exportFile({ name, text, mime: type.split(';')[0], view: type.startsWith('text/calendar') })
+      .catch(() => notify('파일을 내보내지 못했어요.'));
+    return;
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], { type }));
   a.download = name;
