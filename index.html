@@ -223,6 +223,16 @@
   </div>
 </dialog>
 
+<div id="toast" role="status" aria-live="polite" hidden>
+  <span class="t-icon" aria-hidden="true">✓</span>
+  <div class="t-body">
+    <b id="toast-title"></b>
+    <small id="toast-detail"></small>
+  </div>
+  <button type="button" id="toast-undo" hidden>되돌리기</button>
+  <i class="t-bar" aria-hidden="true"></i>
+</div>
+
 <dialog id="cdlg">
   <p id="cdlg-msg"></p>
   <div class="row">

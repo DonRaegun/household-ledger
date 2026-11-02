@@ -168,7 +168,7 @@ const clampDay = (y, m, day) => Math.min(day, new Date(y, m + 1, 0).getDate());
 
 function itemEl(i) {
   const li = document.createElement('li');
-  li.className = 'item';
+  li.className = 'item' + (freshIds.has(i.id) ? ' fresh' : '');   // 방금 들어온 내역은 잠깐 반짝인다
   li.innerHTML = `<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
   li.querySelector('.dot').style.background = color(i.category);
   li.querySelector('.cat span').textContent = i.category;
@@ -247,8 +247,7 @@ function renderExtras() {
   const banner = $('banner');
   banner.hidden = tab !== 'list' || !fixedNotice;
   if (!banner.hidden) {
-    const undo = autoUndo.ids.length && fixedNotice === autoUndo.notice;   // 자동 반영 직후의 알림에만 '되돌리기'
-    banner.innerHTML = `<div class="msg"></div><div class="row">${undo ? '<button id="fix-undo">되돌리기</button>' : ''}<button id="fix-ok" class="primary">확인</button></div>`;
+    banner.innerHTML = '<div class="msg"></div><div class="row"><button id="fix-ok" class="primary">확인</button></div>';
     banner.querySelector('.msg').textContent = fixedNotice;
   }
 
@@ -475,21 +474,63 @@ function pendingFixed() {
   }
   return found;
 }
-// 날짜가 지난 고정지출은 물어보지 않고 자동으로 내역에 넣고, 넣었다는 알림만 남긴다
+// 화면 위쪽 배너: 저장소를 못 읽는 것처럼 직접 확인해야 하는 중요한 경고에만 쓴다
 let fixedNotice = null;
+
+// ---- 토스트: 화면 위쪽에 잠깐 떠서 방금 무엇이 들어갔는지 보여 주고 저절로 사라진다 ----
+const TOAST_MS = 8000;
+const toast = { kind: '', ids: [], timer: 0 };
+const freshIds = new Set();   // 방금 들어온 내역 (목록에서 잠깐 반짝인다)
+function describeItems(ids) {
+  const found = ids.map((id) => items.find((i) => i.id === id)).filter(Boolean);
+  const names = found.slice(0, 2).map((i) => `${stripInst(i.memo) || i.category} ${won(i.amount)}`);
+  return names.join(' · ') + (found.length > 2 ? ` 외 ${found.length - 2}건` : '');
+}
+function hideToast() {
+  clearTimeout(toast.timer);
+  $('toast').hidden = true;
+  toast.ids = [];
+}
+// 같은 종류(kind)가 아직 떠 있고 merge면 이어서 들어온 것을 합친다. undo면 '되돌리기'가 이 내역들을 한꺼번에 지운다.
+function showToast(kind, ids, { title, detail = '', undo = false, merge = false } = {}) {
+  const el = $('toast');
+  const keep = merge && !el.hidden && toast.kind === kind;
+  toast.ids = keep ? [...toast.ids, ...ids] : [...ids];
+  toast.kind = kind;
+  toast.ids.forEach((id) => freshIds.add(id));
+  $('toast-title').textContent = title(toast.ids.length);
+  $('toast-detail').textContent = detail || describeItems(toast.ids);
+  $('toast-detail').hidden = !$('toast-detail').textContent;
+  $('toast-undo').hidden = !(undo && toast.ids.length);
+  el.hidden = false;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');   // 나타나는 동작을 처음부터 다시 재생
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(hideToast, TOAST_MS);
+  setTimeout(() => ids.forEach((id) => freshIds.delete(id)), 4500);
+}
+$('toast').addEventListener('click', (e) => { if (e.target.id !== 'toast-undo') hideToast(); });
+$('toast-undo').onclick = () => {
+  const gone = new Set(toast.ids);
+  items = items.filter((i) => !gone.has(i.id));
+  save(); hideToast(); render();
+};
+
+// 날짜가 지난 고정지출은 물어보지 않고 자동으로 내역에 넣고, 넣었다는 것을 토스트로 알린다
 function autoApplyFixed() {
   const pending = pendingFixed();
   if (!pending.length) return;
+  const ids = [];
   pending.forEach((p, n) => {
     settings.applied[p.key] = true;
+    const id = Date.now() + n;
+    ids.push(id);
     items.push({
-      id: Date.now() + n, type: 'out', amount: p.f.amount, category: p.f.category,
+      id, type: 'out', amount: p.f.amount, category: p.f.category,
       pay: p.f.pay, mood: p.f.mood, date: p.date, memo: p.f.name, fixedId: p.f.id,
     });
   });
   save(); saveSettings();
-  const names = pending.slice(0, 3).map((p) => `${Number(p.date.slice(5, 7))}월 ${p.f.name} ${won(p.f.amount)}`).join(', ');
-  fixedNotice = `고정지출 ${pending.length}건이 내역에 추가됐어요 (${names}${pending.length > 3 ? ' 외' : ''})`;
+  showToast('fixed', ids, { title: (n) => `고정지출 ${n}건이 추가됐어요` });
 }
 // 이번 달 안에 아직 날짜가 오지 않은 고정지출 (통계에는 날짜가 지나야 들어간다)
 function upcomingFixed() {
@@ -501,13 +542,6 @@ function upcomingFixed() {
 }
 $('banner').addEventListener('click', (e) => {
   if (e.target.id === 'fix-ok') { fixedNotice = null; render(); }
-  else if (e.target.id === 'fix-undo') {   // 방금 자동으로 넣은 내역을 한 번에 지운다
-    const ids = new Set(autoUndo.ids);
-    items = items.filter((i) => !ids.has(i.id));
-    autoUndo = { notice: '', ids: [] };
-    fixedNotice = null;
-    save(); render();
-  }
 });
 
 // ---- 카드 출금 예정 (카드 한 장) ----
@@ -1067,20 +1101,31 @@ $('sms-paste').onclick = async () => {
   }
 };
 $('sms-add').onclick = () => {
-  let added = 0, removed = 0, lastDate = '';
+  const addedIds = [];
+  let removed = 0, lastDate = '';
   smsRows.forEach((r, n) => {
     if (!r.include) return;
     if (r.status === 'remove') { items = items.filter((i) => i !== r.target); removed++; return; }
+    const id = Date.now() + n;
+    addedIds.push(id);
     items.push({
-      id: Date.now() + n, type: 'out', amount: r.amount, category: r.category, pay: 'card',
+      id, type: 'out', amount: r.amount, category: r.category, pay: 'card',
       date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r),
     });
-    added++; lastDate = r.date;
+    lastDate = r.date;
   });
   save();
   if (lastDate) { const d = parseDate(lastDate); cur = new Date(d.getFullYear(), d.getMonth(), 1); }
-  // 알림 배너를 같이 쓴다
-  fixedNotice = [added && `문자에서 ${added}건을 추가했어요.`, removed && `취소된 ${removed}건은 삭제했어요.`].filter(Boolean).join(' ');
+  // 추가한 것은 토스트로 알리고(삭제가 없었다면 되돌릴 수 있다), 취소로 지운 것은 문구에만 적는다
+  if (addedIds.length) {
+    showToast('sms', addedIds, {
+      title: (n) => `문자에서 ${n}건을 추가했어요`,
+      detail: removed ? `${describeItems(addedIds)} · 취소 ${removed}건 삭제` : '',
+      undo: !removed,
+    });
+  } else if (removed) {
+    showToast('sms', [], { title: () => `취소된 ${removed}건을 가계부에서 삭제했어요`, detail: ' ' });
+  }
   tab = 'list';
   if (smsFromPending) { pending = []; savePending(); smsFromPending = false; }
   $('sdlg').close();
@@ -1108,7 +1153,6 @@ const alertStamp = (t) => {
   return `${ym(d)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const pendingText = (p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`;
-let autoUndo = { notice: '', ids: [] };   // 방금 자동으로 넣은 내역 (배너의 '되돌리기'가 지운다)
 
 // 확실한 결제만 확인 없이 가계부에 넣는다. 조건: 새 결제(중복·취소·승인취소 짝이 아님) + 금액 + 가맹점 +
 // 날짜·시각이 글 안에 있음. 하나라도 빠지거나 취소면 지금처럼 대기 목록에 두고 확인을 받는다.
@@ -1128,12 +1172,8 @@ function autoApplyPending() {
   pending = pending.filter((p) => { const e = parseSms(pendingText(p)); return !e || !done.has(smsKey(e)); });
   save(); savePending();
   if (added.length) {
-    // 아직 배너가 떠 있는 동안 이어서 들어온 것은 합쳐서 보여 주고, 되돌리기도 한꺼번에 지운다
-    const prev = fixedNotice && fixedNotice === autoUndo.notice ? autoUndo.ids : [];
-    const ids = [...prev, ...added.map((i) => i.id)];
-    const notice = `결제 ${ids.length}건이 자동으로 추가됐어요.`;
-    autoUndo = { notice, ids };
-    fixedNotice = notice;   // 알림 배너를 같이 쓴다
+    // 토스트가 떠 있는 동안 이어서 들어온 것은 합쳐서 보여 주고, 되돌리기도 한꺼번에 지운다
+    showToast('auto', added.map((i) => i.id), { title: (n) => `결제 ${n}건이 자동으로 추가됐어요`, undo: true, merge: true });
     const d = parseDate(added[added.length - 1].date);
     cur = new Date(d.getFullYear(), d.getMonth(), 1);
   }
