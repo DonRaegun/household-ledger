@@ -260,7 +260,8 @@ function renderStats(period, out, yearView) {
   // 결제수단별 합계 (결제수단이 없는 예전 내역은 '미지정')
   const byPay = { cash: 0, card: 0, transfer: 0, none: 0 };
   outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount));
-  $('pay-wrap').hidden = !outs.length;
+  // 결제수단이 한 종류뿐이면 "카드 100%"가 되어 정보가 없으므로, 두 종류 이상일 때만 보여준다
+  $('pay-wrap').hidden = new Set(outs.map((i) => (PAY[i.pay] ? i.pay : 'none'))).size < 2;
   $('pay-stats').innerHTML = [...Object.keys(PAY), 'none']
     .filter((k) => k !== 'none' || byPay.none)
     .map((k) => `<li><span>${PAY[k] || '미지정'}</span><span class="pct">${out ? Math.round((byPay[k] / out) * 100) : 0}%</span><b>${won(byPay[k])}</b></li>`)
@@ -269,13 +270,14 @@ function renderStats(period, out, yearView) {
   // 소비 성격별 합계 (성격을 한 번도 고르지 않았으면 안내만 보여준다)
   const byMood = { need: 0, want: 0, regret: 0, none: 0 };
   outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount));
-  $('mood-wrap').hidden = !outs.length;
+  // 소비 성격을 한 번도 쓴 적이 없으면 이 영역 자체를 보이지 않는다
+  $('mood-wrap').hidden = !outs.length || !items.some((i) => MOODS[i.mood]);
   $('mood-stats').innerHTML = outs.some((i) => MOODS[i.mood])
     ? [...Object.keys(MOODS), 'none']
       .filter((k) => k !== 'none' || byMood.none)
       .map((k) => `<li class="${k === 'regret' ? 'regret' : ''}"><span>${MOODS[k] || '미분류'}</span><span class="pct">${Math.round((byMood[k] / out) * 100)}%</span><b>${won(byMood[k])}</b></li>`)
       .join('')
-    : '<li class="plain">지출을 입력할 때 소비 성격을 고르면 여기서 볼 수 있어요.</li>';
+    : '<li class="plain">이 기간에는 소비 성격을 고른 지출이 없어요.</li>';
 }
 
 function renderYearBars(period) {
@@ -567,6 +569,8 @@ function openDialog(item) {
   $('time').dataset.auto = item ? '0' : '1';
   $('time').hidden = type !== 'out';
   $('memo').value = item ? item.memo : '';
+  setMore(!!item);          // 새 내역은 접어 두고(기본값으로 저장), 수정할 때는 값이 보이게 펼친다
+  updateMoreSum();
   $('dlg').showModal();
   if (!item) $('amount').focus();
 }
@@ -577,6 +581,7 @@ document.querySelectorAll('input[name=type]').forEach((r) =>
     $('pay-seg').hidden = r.value !== 'out';
     $('mood-seg').hidden = r.value !== 'out';
     $('time').hidden = r.value !== 'out';
+    updateMoreSum();
   }));
 
 // 시각을 직접 고치기 전까지는 날짜에 맞춰 자동값을 유지한다 (지난 날짜를 입력할 때 지금 시각이 남지 않게)
@@ -584,6 +589,28 @@ $('date').addEventListener('change', () => {
   if ($('time').dataset.auto === '1') $('time').value = $('date').value === today() ? nowTime() : '';
 });
 $('time').addEventListener('input', () => { $('time').dataset.auto = '0'; });
+
+// '더보기': 결제수단, 소비 성격, 날짜, 시각은 접어 두고, 접힌 동안은 저장될 값을 한 줄로 보여준다
+function setMore(open) {
+  $('more').hidden = !open;
+  $('more-btn').setAttribute('aria-expanded', String(open));
+  $('more-btn').querySelector('b').textContent = open ? '접기' : '더보기';
+  $('more-sum').hidden = open;
+}
+function updateMoreSum() {
+  const out = document.querySelector('input[name=type]:checked').value === 'out';
+  const d = $('date').value;
+  const bits = [d === today() ? '오늘' : d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8))}` : ''];
+  if (out && $('time').value) bits.push($('time').value);
+  const pay = document.querySelector('input[name=pay]:checked');
+  if (out && pay) bits.push(PAY[pay.value]);
+  const mood = document.querySelector('input[name=mood]:checked');
+  if (out && mood && mood.value) bits.push(MOODS[mood.value]);
+  $('more-sum').textContent = bits.filter(Boolean).join(' · ');
+}
+$('more-btn').onclick = () => setMore($('more').hidden);
+$('more').addEventListener('change', updateMoreSum);
+$('more').addEventListener('input', updateMoreSum);
 
 $('form').addEventListener('submit', () => {
   const amount = Number($('amount').value.replace(/\D/g, ''));
@@ -596,7 +623,7 @@ $('form').addEventListener('submit', () => {
     category: $('category').value,
     pay: type === 'out' && payEl ? payEl.value : undefined,
     mood: type === 'out' ? document.querySelector('input[name=mood]:checked').value || undefined : undefined,
-    date: $('date').value,
+    date: $('date').value || today(),
     time: type === 'out' ? $('time').value || undefined : undefined,
     memo: $('memo').value.trim(),
   };

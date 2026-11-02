@@ -131,25 +131,30 @@
     </div>
     <input id="amount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
     <select id="category"></select>
-    <div class="seg" id="pay-seg">
-      <label><input type="radio" name="pay" value="cash"><span>현금</span></label>
-      <label><input type="radio" name="pay" value="card"><span>카드</span></label>
-      <label><input type="radio" name="pay" value="transfer"><span>계좌이체</span></label>
-    </div>
-    <div id="mood-seg">
-      <div class="cap">소비 성격 <small>(선택 안 해도 돼요)</small></div>
-      <div class="seg">
-        <label><input type="radio" name="mood" value="" checked><span>없음</span></label>
-        <label><input type="radio" name="mood" value="need"><span>필수</span></label>
-        <label><input type="radio" name="mood" value="want"><span>선택</span></label>
-        <label><input type="radio" name="mood" value="regret"><span>후회</span></label>
+    <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
+    <button type="button" id="more-btn" aria-expanded="false" aria-controls="more">
+      <span id="more-sum"></span><b>더보기</b>
+    </button>
+    <div id="more" hidden>
+      <div class="seg" id="pay-seg">
+        <label><input type="radio" name="pay" value="cash"><span>현금</span></label>
+        <label><input type="radio" name="pay" value="card"><span>카드</span></label>
+        <label><input type="radio" name="pay" value="transfer"><span>계좌이체</span></label>
+      </div>
+      <div id="mood-seg">
+        <div class="cap">소비 성격 <small>(선택 안 해도 돼요)</small></div>
+        <div class="seg">
+          <label><input type="radio" name="mood" value="" checked><span>없음</span></label>
+          <label><input type="radio" name="mood" value="need"><span>필수</span></label>
+          <label><input type="radio" name="mood" value="want"><span>선택</span></label>
+          <label><input type="radio" name="mood" value="regret"><span>후회</span></label>
+        </div>
+      </div>
+      <div class="two">
+        <input id="date" type="date" aria-label="날짜">
+        <input id="time" type="time" aria-label="시각">
       </div>
     </div>
-    <div class="two">
-      <input id="date" type="date" required>
-      <input id="time" type="time" aria-label="시각">
-    </div>
-    <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <div class="row">
       <button type="button" id="del" class="danger" hidden>삭제</button>
       <button type="button" id="cancel">취소</button>
