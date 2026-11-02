@@ -83,6 +83,23 @@
     <button id="fixed-add" class="wide">+ 고정지출 추가</button>
     <p class="hint">정해진 날짜가 되면 앱을 열 때 자동으로 내역에 추가돼요. 날짜 전에는 내역 탭에 "예정"으로 표시되고, 통계에는 날짜가 된 뒤부터 들어가요.</p>
 
+    <h2>알림 (캘린더)</h2>
+    <div class="panel">
+      <label class="field">알림 시점
+        <select id="remind-days">
+          <option value="0">당일 오전 9시</option>
+          <option value="1">1일 전 오전 9시</option>
+          <option value="2">2일 전 오전 9시</option>
+          <option value="3">3일 전 오전 9시</option>
+        </select>
+      </label>
+      <div class="row">
+        <button id="ics-card">카드 출금일 알림</button>
+        <button id="ics-fixed">고정지출 알림</button>
+      </div>
+      <p class="hint">누르면 일정 파일이 내려받아져요. 파일을 열어 캘린더 앱(삼성 캘린더, 구글 캘린더)에 추가하면, 앱을 안 열어도 캘린더가 알려줘요. 앞으로 12개월치가 등록되고, 같은 항목을 다시 추가하면 대부분의 캘린더에서 중복 없이 갱신돼요. 결제일이나 금액을 바꿨다면 다시 추가하세요.</p>
+    </div>
+
     <h2>데이터 관리</h2>
     <div class="row">
       <button id="export-csv">CSV 내보내기</button>
