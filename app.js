@@ -19,6 +19,13 @@ const short = (n) => n >= 10000
   ? String(Math.round(n / 1000) / 10).replace(/\.0$/, '') + '만'
   : n.toLocaleString('ko-KR');
 
+// 값 형식 검사용 (load()가 실행되기 전에 선언되어 있어야 한다)
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, TIME_RE = /^\d{2}:\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
+// 저장소 문제를 화면에 알리기 위한 상태 (load()보다 먼저 선언해야 한다)
+let storageWarning = null;      // 읽기 오류 안내 문구
+let storageReadOnly = false;    // true면 덮어쓰기로 데이터를 잃을 수 있으니 저장하지 않는다
+let lastStorageAlert = 0;
+
 let items = load();
 let settings = loadSettings();
 let cur = new Date(); cur.setDate(1);
@@ -30,25 +37,113 @@ let selDay = null;         // 달력에서 선택한 날짜
 let editing = null;
 let fEditing = null;
 
-function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+// 저장된 데이터를 읽는다. 읽지 못하면(손상 등) 원본을 다른 이름으로 보관한 뒤 빈 상태로 시작한다.
+// 그냥 빈 상태로 두면 다음 저장 때 원본이 덮어써져 조용히 사라지기 때문이다.
+function readJson(key, isValid) {
+  let raw;
+  try { raw = localStorage.getItem(key); }
+  catch {
+    storageWarning = '이 브라우저에서는 저장 공간을 쓸 수 없어요. 입력한 내용이 저장되지 않을 수 있어요.';
+    storageReadOnly = true;
+    return null;
+  }
+  if (raw == null) return null;
+  try {
+    const v = JSON.parse(raw);
+    if (isValid(v)) return v;
+  } catch { /* 아래에서 원본을 보관한다 */ }
+  if (!keepBroken(key, raw)) storageReadOnly = true;
+  storageWarning = '저장된 데이터를 읽지 못했어요. 원본은 따로 보관해 두었어요. 지우지 말고 알려 주세요.';
+  return null;
 }
-function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+function keepBroken(key, raw) {
+  try {
+    let slot = `${key}.broken`;
+    const old = localStorage.getItem(slot);
+    if (old !== null && old !== raw) slot += `.${Date.now()}`;   // 같은 원본은 한 번만 보관한다
+    localStorage.setItem(slot, raw);
+    return true;
+  } catch { return false; }
+}
+function warnStorage() {
+  if (Date.now() - lastStorageAlert < 5000) return;
+  lastStorageAlert = Date.now();
+  notify('저장하지 못했어요. 저장 공간이 부족하거나 이 브라우저에서 막혀 있어요. 설정 탭에서 백업을 받아 두세요.');
+}
+
+// 브라우저 기본 confirm()/alert()는 내장 브라우저나 설정에 따라 아예 뜨지 않고 '취소'로 처리되기도 한다.
+// 삭제처럼 중요한 동작이 조용히 무시되지 않도록 앱 안의 창을 쓴다.
+function ask(message, { yes = '확인', no = '취소', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const dlg = $('cdlg');
+    $('cdlg-msg').textContent = message;
+    $('cdlg-yes').textContent = yes;
+    $('cdlg-yes').classList.toggle('warn', danger);
+    $('cdlg-no').textContent = no || '';
+    $('cdlg-no').hidden = !no;
+    const done = (v) => { dlg.close(); resolve(v); };
+    $('cdlg-yes').onclick = () => done(true);
+    $('cdlg-no').onclick = () => done(false);
+    dlg.oncancel = (e) => { e.preventDefault(); done(false); };   // Esc 키
+    dlg.showModal();
+  });
+}
+const notify = (message) => ask(message, { no: null });
+function persist(key, value) {
+  if (storageReadOnly) { warnStorage(); return false; }
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch { warnStorage(); return false; }
+}
+function load() { return readJson(KEY, Array.isArray) || []; }
+function save() { return persist(KEY, items); }
+
+// 백업 파일이나 설정에서 온 값은 형식을 확인하고, 맞지 않으면 버리거나 안전한 값으로 바꾼다
+function cleanItem(i, n) {
+  if (!i || typeof i !== 'object') return null;
+  const amount = Number(i.amount);
+  if (!Number.isFinite(amount) || amount <= 0 || !DATE_RE.test(i.date) || !['in', 'out'].includes(i.type)) return null;
+  const out = {
+    id: Number.isFinite(Number(i.id)) ? Number(i.id) : Date.now() + n,
+    type: i.type, amount: Math.round(amount), date: i.date,
+    category: CATEGORIES[i.type].includes(i.category) ? i.category : '기타',
+    memo: typeof i.memo === 'string' ? i.memo.slice(0, 200) : '',
+  };
+  if (PAY[i.pay]) out.pay = i.pay;
+  if (MOODS[i.mood]) out.mood = i.mood;
+  if (typeof i.time === 'string' && TIME_RE.test(i.time)) out.time = i.time;
+  if (typeof i.fixedId === 'string') out.fixedId = i.fixedId.slice(0, 40);
+  if (typeof i.smsKey === 'string') out.smsKey = i.smsKey.slice(0, 200);
+  return out;
+}
+function cleanFixed(f) {
+  if (!f || typeof f !== 'object' || typeof f.id !== 'string' || typeof f.name !== 'string') return null;
+  const amount = Number(f.amount), day = Number(f.day);
+  if (!Number.isFinite(amount) || amount <= 0 || !(day >= 1 && day <= 31) || !MONTH_RE.test(f.since)) return null;
+  const out = {
+    id: f.id.slice(0, 40), name: f.name.slice(0, 60), amount: Math.round(amount), day, since: f.since,
+    category: CATEGORIES.out.includes(f.category) ? f.category : '기타', pay: PAY[f.pay] ? f.pay : 'card', sub: !!f.sub,
+  };
+  if (MOODS[f.mood]) out.mood = f.mood;
+  return out;
+}
+
 function normSettings(s) {
   s = s && typeof s === 'object' ? s : {};
   return {
+    lastBackup: typeof s.lastBackup === 'string' && DATE_RE.test(s.lastBackup) ? s.lastBackup : '',
+    backupSnooze: typeof s.backupSnooze === 'string' && DATE_RE.test(s.backupSnooze) ? s.backupSnooze : '',
     lastPay: PAY[s.lastPay] ? s.lastPay : 'card',
     cardDay: Number(s.cardDay) >= 1 && Number(s.cardDay) <= 31 ? Number(s.cardDay) : null,
     cardStart: Number(s.cardStart) >= 1 && Number(s.cardStart) <= 31 ? Number(s.cardStart) : 1,
     remindDays: [0, 1, 2, 3].includes(Number(s.remindDays)) && s.remindDays !== '' && s.remindDays != null ? Number(s.remindDays) : 1,
-    fixed: Array.isArray(s.fixed) ? s.fixed : [],
+    fixed: Array.isArray(s.fixed) ? s.fixed.map(cleanFixed).filter(Boolean) : [],
     applied: s.applied && typeof s.applied === 'object' ? s.applied : {},
   };
 }
 function loadSettings() {
-  try { return normSettings(JSON.parse(localStorage.getItem(SKEY))); } catch { return normSettings(); }
+  return normSettings(readJson(SKEY, (v) => v && typeof v === 'object' && !Array.isArray(v)));
 }
-function saveSettings() { localStorage.setItem(SKEY, JSON.stringify(settings)); }
+function saveSettings() { return persist(SKEY, settings); }
 
 const pad = (n) => String(n).padStart(2, '0');
 function ym(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
@@ -166,8 +261,30 @@ function renderExtras() {
     box.querySelector('small').textContent = `${info.period} 사용분`;
     box.querySelector('b').textContent = `예정 ${won(info.amount)}`;
   }
-  $('info-box').hidden = box.hidden && up.hidden;
+
+  // 백업 안내: 한 번도 백업하지 않았는데 내역이 쌓였거나, 마지막 백업이 오래됐을 때만
+  const tip = $('backup-tip');
+  const why = tab === 'list' ? backupDue() : null;
+  tip.hidden = !why;
+  if (why) {
+    tip.innerHTML = '<span></span><div><button id="tip-snooze">나중에</button><button id="tip-backup" class="primary">백업</button></div>';
+    tip.querySelector('span').textContent = why;
+  }
+  $('info-box').hidden = box.hidden && up.hidden && tip.hidden;
 }
+function backupDue() {
+  if (!items.length || (settings.backupSnooze && settings.backupSnooze > today())) return null;
+  if (!settings.lastBackup) return items.length >= 10 ? '아직 백업한 적이 없어요. 폰을 바꾸거나 앱을 지우면 내역이 사라져요.' : null;
+  const days = Math.round((parseDate(today()) - parseDate(settings.lastBackup)) / 86400000);
+  return days >= 30 ? `마지막 백업이 ${days}일 전이에요.` : null;
+}
+$('backup-tip').addEventListener('click', (e) => {
+  if (e.target.id === 'tip-backup') $('export-json').click();
+  else if (e.target.id === 'tip-snooze') {
+    const d = new Date(); d.setDate(d.getDate() + 7);
+    settings.backupSnooze = ymd(d); saveSettings(); render();
+  }
+});
 
 function renderList(month) {
   const list = $('list');
@@ -484,8 +601,8 @@ $('fform').addEventListener('submit', () => {
   else settings.fixed.push({ id: 'f' + Date.now(), since: ym(new Date()), ...data });
   saveSettings(); render();
 });
-$('fdel').onclick = () => {
-  if (fEditing && confirm('이 고정지출을 삭제할까요? (이미 추가된 내역은 그대로 남아요)')) {
+$('fdel').onclick = async () => {
+  if (fEditing && await ask('이 고정지출을 삭제할까요? 이미 추가된 내역은 그대로 남아요.', { yes: '삭제', danger: true })) {
     settings.fixed = settings.fixed.filter((f) => f !== fEditing);
     saveSettings(); render(); $('fdlg').close();
   }
@@ -638,8 +755,8 @@ $('form').addEventListener('submit', () => {
   render();
 });
 $('cancel').onclick = () => $('dlg').close();
-$('del').onclick = () => {
-  if (editing && confirm('삭제할까요?')) {
+$('del').onclick = async () => {
+  if (editing && await ask('이 내역을 삭제할까요?', { yes: '삭제', danger: true })) {
     items = items.filter((i) => i !== editing);
     save(); render(); $('dlg').close();
   }
@@ -875,7 +992,7 @@ $('sms-paste').onclick = async () => {
     $('sms-text').value = await navigator.clipboard.readText();
     analyzeSms($('sms-text').value); renderSms();
   } catch {
-    alert('클립보드를 읽을 수 없어요. 위 입력칸을 길게 눌러서 직접 붙여넣어 주세요.');
+    notify('클립보드를 읽을 수 없어요. 위 입력칸을 길게 눌러서 직접 붙여넣어 주세요.');
   }
 };
 $('sms-add').onclick = () => {
@@ -912,8 +1029,11 @@ $('export-csv').onclick = () => {
     .map((i) => [i.date, i.time || '', i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', MOODS[i.mood] || '', i.amount, i.memo].map(esc).join(','));
   download('가계부.csv', '﻿날짜,시각,구분,카테고리,결제수단,소비성격,금액,메모\n' + rows.join('\n'), 'text/csv');
 };
-$('export-json').onclick = () =>
+$('export-json').onclick = () => {
+  settings.lastBackup = today(); settings.backupSnooze = ''; saveSettings();   // 백업 파일에도 이 날짜가 들어간다
   download('가계부-백업.json', JSON.stringify({ version: 2, items, settings }), 'application/json');
+  render();
+};
 $('import-json').onclick = () => $('import-file').click();
 $('import-file').onchange = async (e) => {
   const f = e.target.files[0];
@@ -922,11 +1042,16 @@ $('import-file').onchange = async (e) => {
     const data = JSON.parse(await f.text());
     const list = Array.isArray(data) ? data : data.items;   // 예전 백업은 배열만 들어 있음
     if (!Array.isArray(list)) throw 0;
-    if (!confirm(`현재 데이터를 백업 ${list.length}건으로 교체할까요?`)) return;
-    items = list; save();
-    if (!Array.isArray(data)) { settings = normSettings(data.settings); saveSettings(); }
+    const clean = list.map(cleanItem).filter(Boolean);     // 형식이 맞지 않는 항목은 가져오지 않는다
+    const bad = list.length - clean.length;
+    if (!clean.length) { notify('불러올 수 있는 내역이 없어요.'); e.target.value = ''; return; }
+    const msg = `현재 데이터를 백업 ${clean.length}건으로 교체할까요?${bad ? ` (읽을 수 없는 ${bad}건은 제외돼요)` : ''}`;
+    if (!(await ask(msg, { yes: '교체', danger: true }))) { e.target.value = ''; return; }
+    items = clean;
+    if (!Array.isArray(data)) settings = normSettings(data.settings);
+    save(); saveSettings();   // 저장에 실패하면 persist()가 안내를 띄운다
     render();
-  } catch { alert('올바른 백업 파일이 아니에요.'); }
+  } catch { notify('올바른 백업 파일이 아니에요.'); }
   e.target.value = '';
 };
 
@@ -964,6 +1089,11 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
+
+// 저장된 데이터를 읽지 못했다면 첫 화면에서 알린다
+if (storageWarning) { fixedNotice = storageWarning; render(); }
+// 브라우저가 저장 공간이 부족할 때 이 앱의 데이터를 임의로 지우지 않도록 요청한다 (거절될 수 있다)
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
 // 문자 앱에서 '공유'로 열었을 때 (?text=...) 바로 읽기 창을 띄운다
 {

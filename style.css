@@ -104,7 +104,12 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #info-box #card-info, #info-box #upcoming {
   background: none; border-radius: 0; margin: 0; padding: 9px 14px; font-size: 13px;
 }
-#info-box #card-info:not([hidden]) + #upcoming:not([hidden]) { border-top: 1px solid var(--line); }
+#info-box > :not([hidden]) ~ :not([hidden]) { border-top: 1px solid var(--line); }
+#backup-tip { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 14px; font-size: 13px; }
+#backup-tip span { color: var(--sub); }
+#backup-tip div { display: flex; gap: 6px; flex: none; }
+#backup-tip button { padding: 6px 10px; font-size: 13px; background: var(--bg); }
+#backup-tip button.primary { background: var(--primary); color: #fff; }
 #info-box #card-info small { margin-top: 1px; }
 
 /* + 버튼: 아래로 스크롤하는 동안은 숨김 */
@@ -125,6 +130,10 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #mood-stats li.plain { justify-content: center; color: var(--sub); font-size: 13px; }
 
 button:disabled { opacity: .4; cursor: default; }
+
+#cdlg { width: min(86vw, 340px); }
+#cdlg p { margin: 4px 2px 16px; line-height: 1.5; white-space: pre-line; }
+.row .primary.warn { background: var(--out); }
 
 .listbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .listbar .toggle { flex: 1; margin-bottom: 0; }
