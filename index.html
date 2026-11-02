@@ -62,6 +62,10 @@
       <h2>결제수단별 지출</h2>
       <ul id="pay-stats"></ul>
     </div>
+    <div id="mood-wrap" hidden>
+      <h2>소비 성격별 지출</h2>
+      <ul id="mood-stats"></ul>
+    </div>
   </section>
 
   <section id="view-settings" hidden>
@@ -72,6 +76,8 @@
       <p class="hint" id="card-hint"></p>
     </div>
 
+    <h2 id="sub-title" hidden>구독</h2>
+    <ul id="sub-list"></ul>
     <h2 id="fixed-title">고정지출</h2>
     <ul id="fixed-list"></ul>
     <button id="fixed-add" class="wide">+ 고정지출 추가</button>
@@ -108,6 +114,15 @@
       <label><input type="radio" name="pay" value="card"><span>카드</span></label>
       <label><input type="radio" name="pay" value="transfer"><span>계좌이체</span></label>
     </div>
+    <div id="mood-seg">
+      <div class="cap">소비 성격 <small>(선택 안 해도 돼요)</small></div>
+      <div class="seg">
+        <label><input type="radio" name="mood" value="" checked><span>없음</span></label>
+        <label><input type="radio" name="mood" value="need"><span>필수</span></label>
+        <label><input type="radio" name="mood" value="want"><span>선택</span></label>
+        <label><input type="radio" name="mood" value="regret"><span>후회</span></label>
+      </div>
+    </div>
     <input id="date" type="date" required>
     <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <div class="row">
@@ -129,7 +144,15 @@
       <label><input type="radio" name="fpay" value="card" checked><span>카드</span></label>
       <label><input type="radio" name="fpay" value="transfer"><span>계좌이체</span></label>
     </div>
+    <div class="cap">소비 성격</div>
+    <div class="seg">
+      <label><input type="radio" name="fmood" value=""><span>없음</span></label>
+      <label><input type="radio" name="fmood" value="need" checked><span>필수</span></label>
+      <label><input type="radio" name="fmood" value="want"><span>선택</span></label>
+      <label><input type="radio" name="fmood" value="regret"><span>후회</span></label>
+    </div>
     <label class="field">매달 <select id="fday"></select> 일</label>
+    <label class="check"><input id="fsub" type="checkbox"> 구독 서비스예요 (구독 목록에 모아서 보여줘요)</label>
     <div class="row">
       <button type="button" id="fdel" class="danger" hidden>삭제</button>
       <button type="button" id="fcancel">취소</button>

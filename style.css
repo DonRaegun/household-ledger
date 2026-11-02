@@ -99,9 +99,22 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #card-info b, #upcoming b { white-space: nowrap; }
 #card-info em { font-style: normal; }
 
-#pay-stats li { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px; }
-#pay-stats li span:first-child { flex: 1; }
-#pay-stats .pct { color: var(--sub); font-size: 13px; }
+#pay-stats li, #mood-stats li { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px; }
+#pay-stats li span:first-child, #mood-stats li span:first-child { flex: 1; }
+#pay-stats .pct, #mood-stats .pct { color: var(--sub); font-size: 13px; }
+#mood-stats li.regret b { color: var(--out); }
+#mood-stats li.plain { justify-content: center; color: var(--sub); font-size: 13px; }
+
+.cap { font-size: 12px; color: var(--sub); margin: 2px 2px 6px; }
+.cap small { font-size: 11px; }
+.seg span { font-size: 14px; padding: 10px 4px; }
+.chip { display: inline-block; font-size: 11px; line-height: 1.5; padding: 0 7px; border-radius: 8px; margin-right: 5px; background: var(--bg); color: var(--sub); }
+.chip.mood-need { background: rgba(47,111,237,.14); color: var(--primary); }
+.chip.mood-want { background: rgba(31,157,85,.14); color: var(--in); }
+.chip.mood-regret { background: rgba(229,72,77,.14); color: var(--out); }
+.check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin-bottom: 12px; }
+.check input { margin-top: 3px; }
+dialog { max-height: 92vh; overflow: auto; }
 
 .panel { background: var(--card); border-radius: 12px; padding: 12px 14px; }
 .panel select, #fdlg select, #dlg select {
@@ -112,7 +125,7 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #card-info small { display: block; font-size: 12px; margin-top: 2px; }
 .hint { font-size: 12px; color: var(--sub); margin: 8px 2px 0; }
 .wide { width: 100%; margin-top: 4px; background: var(--card); color: var(--primary); font-weight: 600; }
-#fixed-list li.item {
+#sub-list li.item, #fixed-list li.item {
   display: flex; justify-content: space-between; align-items: center; cursor: pointer;
   background: var(--card); padding: 12px 14px; border-radius: 12px; margin-bottom: 6px;
 }

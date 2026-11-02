@@ -8,6 +8,7 @@ const COLORS = {
   '급여': '#16a34a', '용돈': '#06b6d4', '부수입': '#65a30d', '기타': '#94a3b8',
 };
 const PAY = { cash: '현금', card: '카드', transfer: '계좌이체' };
+const MOODS = { need: '필수', want: '선택', regret: '후회' };
 const color = (c) => COLORS[c] || COLORS['기타'];
 const KEY = 'ledger.v1';
 const SKEY = 'ledger.settings.v1';
@@ -72,10 +73,17 @@ function itemEl(i) {
   li.innerHTML = `<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
   li.querySelector('.dot').style.background = color(i.category);
   li.querySelector('.cat span').textContent = i.category;
+  const memo = li.querySelector('.memo');
   const bits = [];
   if (i.type === 'out' && PAY[i.pay]) bits.push(PAY[i.pay]);
   if (i.memo) bits.push(i.memo);
-  li.querySelector('.memo').textContent = bits.join(' · ');
+  memo.textContent = bits.join(' · ');
+  if (i.type === 'out' && MOODS[i.mood]) {
+    const chip = document.createElement('span');
+    chip.className = `chip mood-${i.mood}`;
+    chip.textContent = MOODS[i.mood];
+    memo.prepend(chip);
+  }
   li.querySelector('.amt').textContent = (i.type === 'out' ? '-' : '+') + won(i.amount);
   li.onclick = () => openDialog(i);
   return li;
@@ -247,6 +255,17 @@ function renderStats(period, out, yearView) {
     .filter((k) => k !== 'none' || byPay.none)
     .map((k) => `<li><span>${PAY[k] || '미지정'}</span><span class="pct">${out ? Math.round((byPay[k] / out) * 100) : 0}%</span><b>${won(byPay[k])}</b></li>`)
     .join('');
+
+  // 소비 성격별 합계 (성격을 한 번도 고르지 않았으면 안내만 보여준다)
+  const byMood = { need: 0, want: 0, regret: 0, none: 0 };
+  outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount));
+  $('mood-wrap').hidden = !outs.length;
+  $('mood-stats').innerHTML = outs.some((i) => MOODS[i.mood])
+    ? [...Object.keys(MOODS), 'none']
+      .filter((k) => k !== 'none' || byMood.none)
+      .map((k) => `<li class="${k === 'regret' ? 'regret' : ''}"><span>${MOODS[k] || '미분류'}</span><span class="pct">${Math.round((byMood[k] / out) * 100)}%</span><b>${won(byMood[k])}</b></li>`)
+      .join('')
+    : '<li class="plain">지출을 입력할 때 소비 성격을 고르면 여기서 볼 수 있어요.</li>';
 }
 
 function renderYearBars(period) {
@@ -312,7 +331,7 @@ function autoApplyFixed() {
     settings.applied[p.key] = true;
     items.push({
       id: Date.now() + n, type: 'out', amount: p.f.amount, category: p.f.category,
-      pay: p.f.pay, date: p.date, memo: p.f.name, fixedId: p.f.id,
+      pay: p.f.pay, mood: p.f.mood, date: p.date, memo: p.f.name, fixedId: p.f.id,
     });
   });
   save(); saveSettings();
@@ -390,17 +409,28 @@ function renderSettings() {
   $('card-hint').textContent = s === 1
     ? '매달 1일~말일에 쓴 금액이 다음 달 결제일에 출금되는 카드예요.'
     : `매달 ${s}일부터 다음 달 ${s - 1}일까지 쓴 금액이 그다음 달 결제일에 출금되는 카드예요. (예: 10/${s}~11/${s - 1} 사용분 → 12월 결제일)`;
-  const total = settings.fixed.reduce((s, f) => s + f.amount, 0);
-  $('fixed-title').textContent = settings.fixed.length ? `고정지출 (월 ${won(total)})` : '고정지출';
-  const list = $('fixed-list');
+  // 구독은 비싼 순으로 따로 모아 월/연 합계를 보여주고, 나머지는 날짜 순으로 보여준다
+  const sum = (arr) => arr.reduce((s, f) => s + f.amount, 0);
+  const subs = settings.fixed.filter((f) => f.sub).sort((a, b) => b.amount - a.amount);
+  const rest = settings.fixed.filter((f) => !f.sub).sort((a, b) => a.day - b.day);
+  $('sub-title').hidden = !subs.length;
+  $('sub-title').textContent = `구독 ${subs.length}개 · 월 ${won(sum(subs))} (연 ${won(sum(subs) * 12)})`;
+  $('fixed-title').hidden = !rest.length && subs.length > 0;
+  $('fixed-title').textContent = rest.length
+    ? `${subs.length ? '그 외 ' : ''}고정지출 (월 ${won(sum(rest))})` : '고정지출';
+  fillFixedList($('sub-list'), subs);
+  fillFixedList($('fixed-list'), rest);
+}
+
+function fillFixedList(list, rows) {
   list.innerHTML = '';
-  for (const f of [...settings.fixed].sort((a, b) => a.day - b.day)) {
+  for (const f of rows) {
     const li = document.createElement('li');
     li.className = 'item';
     li.innerHTML = '<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt out"></div>';
     li.querySelector('.dot').style.background = color(f.category);
     li.querySelector('.cat span').textContent = f.name;
-    li.querySelector('.memo').textContent = `매달 ${f.day}일 · ${f.category} · ${PAY[f.pay] || ''}`;
+    li.querySelector('.memo').textContent = [`매달 ${f.day}일`, f.category, PAY[f.pay], MOODS[f.mood]].filter(Boolean).join(' · ');
     li.querySelector('.amt').textContent = won(f.amount);
     li.onclick = () => openFixed(f);
     list.appendChild(li);
@@ -416,6 +446,9 @@ function openFixed(f) {
   $('famount').value = f ? f.amount.toLocaleString('ko-KR') : '';
   document.querySelector(`input[name=fpay][value=${f ? f.pay : settings.lastPay}]`).checked = true;
   $('fday').value = f ? f.day : new Date().getDate();
+  $('fsub').checked = !!(f && f.sub);
+  const fm = f ? f.mood || '' : 'need';   // 새 고정지출은 '필수'가 기본
+  document.querySelectorAll('input[name=fmood]').forEach((r) => (r.checked = r.value === fm));
   $('fdlg').showModal();
   if (!f) $('fname').focus();
 }
@@ -429,6 +462,8 @@ $('fform').addEventListener('submit', () => {
     name, amount, category: $('fcategory').value,
     pay: document.querySelector('input[name=fpay]:checked').value,
     day: Number($('fday').value),
+    sub: $('fsub').checked,
+    mood: document.querySelector('input[name=fmood]:checked').value || undefined,
   };
   if (fEditing) Object.assign(fEditing, data);
   else settings.fixed.push({ id: 'f' + Date.now(), since: ym(new Date()), ...data });
@@ -508,6 +543,9 @@ function openDialog(item) {
   const pay = item ? item.pay : settings.lastPay;
   document.querySelectorAll('input[name=pay]').forEach((r) => (r.checked = r.value === pay));
   $('pay-seg').hidden = type !== 'out';
+  $('mood-seg').hidden = type !== 'out';
+  const mood = (item && item.mood) || '';
+  document.querySelectorAll('input[name=mood]').forEach((r) => (r.checked = r.value === mood));
   $('amount').value = item ? item.amount.toLocaleString('ko-KR') : '';
   $('date').value = item ? item.date : (listMode === 'cal' && selDay) || today();
   $('memo').value = item ? item.memo : '';
@@ -519,6 +557,7 @@ document.querySelectorAll('input[name=type]').forEach((r) =>
   r.addEventListener('change', () => {
     fillCategories('category', r.value);
     $('pay-seg').hidden = r.value !== 'out';
+    $('mood-seg').hidden = r.value !== 'out';
   }));
 
 $('form').addEventListener('submit', () => {
@@ -531,6 +570,7 @@ $('form').addEventListener('submit', () => {
     amount,
     category: $('category').value,
     pay: type === 'out' && payEl ? payEl.value : undefined,
+    mood: type === 'out' ? document.querySelector('input[name=mood]:checked').value || undefined : undefined,
     date: $('date').value,
     memo: $('memo').value.trim(),
   };
@@ -564,8 +604,8 @@ function download(name, text, type) {
 $('export-csv').onclick = () => {
   const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
   const rows = [...items].sort((a, b) => a.date.localeCompare(b.date))
-    .map((i) => [i.date, i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', i.amount, i.memo].map(esc).join(','));
-  download('가계부.csv', '﻿날짜,구분,카테고리,결제수단,금액,메모\n' + rows.join('\n'), 'text/csv');
+    .map((i) => [i.date, i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', MOODS[i.mood] || '', i.amount, i.memo].map(esc).join(','));
+  download('가계부.csv', '﻿날짜,구분,카테고리,결제수단,소비성격,금액,메모\n' + rows.join('\n'), 'text/csv');
 };
 $('export-json').onclick = () =>
   download('가계부-백업.json', JSON.stringify({ version: 2, items, settings }), 'application/json');
