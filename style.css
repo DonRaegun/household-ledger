@@ -125,6 +125,32 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #mood-stats li.plain { justify-content: center; color: var(--sub); font-size: 13px; }
 
 button:disabled { opacity: .4; cursor: default; }
+
+.listbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.listbar .toggle { flex: 1; margin-bottom: 0; }
+#sms-open { background: var(--card); color: var(--primary); font-weight: 600; padding: 0 14px; border-radius: 10px; white-space: nowrap; }
+#sms-text {
+  width: 100%; min-height: 90px; padding: 12px; margin-bottom: 8px; resize: vertical;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font: inherit; color: inherit;
+}
+#sms-result { margin: 4px 0 12px; }
+.sms-row { background: var(--bg); border-radius: 12px; padding: 10px 12px; margin-top: 8px; }
+.sms-row.off { opacity: .6; }
+.sms-top { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+.sms-top .when { color: var(--sub); white-space: nowrap; }
+.sms-top .chip { white-space: nowrap; margin-right: 0; }
+.sms-top b { margin-left: auto; white-space: nowrap; }
+.sms-top b.in { color: var(--in); }
+.sms-top b.out { color: var(--out); }
+.sms-edit { display: flex; gap: 8px; margin-top: 8px; }
+.sms-edit input, .sms-edit select {
+  min-width: 0; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); font: inherit; color: inherit;
+}
+.sms-edit input { flex: 1.4; }
+.sms-edit select { flex: 1; }
+.sms-name { margin-top: 6px; font-size: 14px; }
+.chip.st-new { background: rgba(47,111,237,.14); color: var(--primary); }
+.chip.st-remove { background: rgba(229,72,77,.14); color: var(--out); }
 .panel .row { margin-top: 4px; }
 .panel .row button { background: var(--bg); }
 .cap { font-size: 12px; color: var(--sub); margin: 2px 2px 6px; }

@@ -693,6 +693,184 @@ $('ics-fixed').onclick = () => {
   if (settings.fixed.length) download('가계부-고정지출알림.ics', buildIcs(fixedEvents()), 'text/calendar;charset=utf-8');
 };
 
+// ---- 결제 문자 읽기 (붙여넣기 / 공유) ----
+// 카드 승인 문자나 앱 알림에서 금액, 가맹점, 결제 시각을 읽어 입력을 돕는다.
+// 카드번호와 이름은 읽지도 저장하지도 않는다. 읽은 결과는 확인 창에서 고친 뒤에만 반영된다.
+const SMS_START = /^\s*(\[[^\]\n]+\]\s*\[[^\]\n]+\]|\[Web발신\]|●)/i;   // 문자 한 통이 시작되는 줄
+const SMS_WHEN = /(\d{1,2})[\/.](\d{1,2})\s+(\d{1,2}):(\d{2})/;       // '10/10 20:15'
+const CAT_GUESS = [
+  [/카페|커피|스타벅스|투썸|이디야|메가|빽다방|할리스/, '카페'],
+  [/편의점|GS25|CU|세븐일레븐|마트|식당|정육|치킨|피자|분식|김밥|국밥|횟집|고기|배달|맥도날|버거|도시락|반찬/, '식비'],
+  [/주유|택시|지하철|버스|티머니|코레일|철도|하이패스|주차/, '교통'],
+  [/병원|의원|약국|치과|한의원/, '의료'],
+  [/백화점|리테일|올리브영|다이소|쿠팡|11번가|옥션|무신사/, '쇼핑'],
+];
+const stripInst = (memo) => String(memo || '').replace(/ \d+개월 할부$/, '');
+
+// 붙여넣은 글을 문자 한 통씩 나눈다 (카톡에서 복사한 '[이름] [오후 12:31]' 머리글도 경계로 쓴다)
+function splitSms(text) {
+  const blocks = [];
+  let cur = [];
+  for (const line of text.replace(/\r/g, '').split('\n')) {
+    if (SMS_START.test(line) && SMS_WHEN.test(cur.join('\n'))) { blocks.push(cur.join('\n')); cur = []; }
+    cur.push(line);
+  }
+  if (cur.length) blocks.push(cur.join('\n'));
+  return blocks.filter((b) => b.trim());
+}
+
+// 문자 한 통 -> { cancel, amount, date, time, merchant, inst } (결제 문자가 아니면 null)
+function parseSms(block) {
+  const w = block.match(SMS_WHEN);
+  const a = block.match(/(\d[\d,]*)\s*원/);
+  if (!w || !a) return null;
+  const cancel = /취소/.test(block);
+  if (!cancel && !/승인|결제/.test(block)) return null;
+  const [mo, da, hh, mi] = [Number(w[1]), Number(w[2]), Number(w[3]), Number(w[4])];
+  // 문자에는 연도가 없어서 올해로 보고, 많이 미래면 작년으로 본다 (1월에 12월 문자를 읽는 경우)
+  const now = new Date();
+  let y = now.getFullYear();
+  if (new Date(y, mo - 1, da, hh, mi) - now > 36 * 3600 * 1000) y--;
+  const rest = block.slice(block.indexOf(w[0]) + w[0].length);
+  const merchant = (rest.split('\n').map((s) => s.trim()).find(Boolean) || '')
+    .replace(/（/g, '(').replace(/）/g, ')');
+  const inst = block.match(/(\d+)\s*개월/);
+  return {
+    cancel, amount: Number(a[1].replace(/,/g, '')),
+    date: `${y}-${pad(mo)}-${pad(da)}`, time: `${pad(hh)}:${pad(mi)}`,
+    merchant, inst: inst ? Number(inst[1]) : 0,
+  };
+}
+
+// 전에 입력한 같은 가맹점의 카테고리를 먼저 따르고, 없으면 이름으로 짐작한다
+function guessCategory(merchant) {
+  const past = [...items].sort(byNewest).find((i) => i.type === 'out' && stripInst(i.memo) === merchant && merchant);
+  if (past) return past.category;
+  const hit = CAT_GUESS.find(([re]) => re.test(merchant));
+  return hit ? hit[1] : '기타';
+}
+const smsMemo = (r) => r.merchant + (r.inst ? ` ${r.inst}개월 할부` : '');
+const smsKey = (r) => `${r.date} ${r.time} ${r.amount} ${r.merchant}`;
+const isDup = (r) => items.some((i) => i.smsKey === smsKey(r) ||
+  (i.type === 'out' && i.date === r.date && i.time === r.time && i.amount === r.amount));
+
+let smsRows = [], smsSkipped = 0;
+// 읽은 결과를 상태별로 분류한다: new(새 결제) / dup(이미 있음) / offset(승인과 취소가 서로 상쇄)
+// / remove(취소 -> 이미 입력한 내역 삭제) / missing(취소인데 원래 결제가 없음)
+function analyzeSms(text) {
+  const parsed = splitSms(text).map(parseSms);
+  smsRows = parsed.filter(Boolean).map((p) => ({ ...p, status: 'new', include: true, category: '' }));
+  smsSkipped = parsed.length - smsRows.length;
+  const when = (r) => `${r.date} ${r.time}`;
+  const used = new Set();
+  for (const c of smsRows.filter((r) => r.cancel)) {
+    const mate = smsRows.find((r) => !r.cancel && !used.has(r) && r.amount === c.amount &&
+      r.merchant === c.merchant && when(r) <= when(c));
+    if (mate) { used.add(mate); mate.status = c.status = 'offset'; mate.include = c.include = false; continue; }
+    const target = [...items].sort(byNewest).find((i) => i.type === 'out' && i.amount === c.amount &&
+      (!c.merchant || stripInst(i.memo) === c.merchant) && i.date <= c.date);
+    if (target) { c.status = 'remove'; c.target = target; }
+    else { c.status = 'missing'; c.include = false; }
+  }
+  for (const r of smsRows) {
+    if (r.status !== 'new') continue;
+    r.category = guessCategory(r.merchant);
+    if (isDup(r)) { r.status = 'dup'; r.include = false; }
+  }
+  smsRows.sort((a, b) => when(a).localeCompare(when(b)));
+}
+
+const SMS_TAG = { new: '새 내역', dup: '이미 있어요', offset: '상쇄', remove: '기존 내역 삭제', missing: '원결제 없음' };
+function renderSms() {
+  const box = $('sms-result');
+  box.innerHTML = '';
+  const text = $('sms-text').value.trim();
+  $('sms-sum').textContent = smsRows.length
+    ? `결제 문자 ${smsRows.length}건을 읽었어요.${smsSkipped ? ` (읽지 못한 ${smsSkipped}건)` : ''}`
+    : text ? '결제 문자를 찾지 못했어요. 금액(○○원)과 날짜·시각(10/10 20:15)이 들어 있는 승인 문자를 붙여넣어 주세요.' : '';
+  smsRows.forEach((r) => {
+    const el = document.createElement('div');
+    el.className = 'sms-row' + (r.include ? '' : ' off');
+    const top = document.createElement('label');
+    top.className = 'sms-top';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = r.include; cb.disabled = r.status === 'offset' || r.status === 'missing';
+    cb.onchange = () => { r.include = cb.checked; renderSms(); };
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = `${Number(r.date.slice(5, 7))}/${Number(r.date.slice(8))} ${r.time}`;
+    const tag = document.createElement('span');
+    tag.className = `chip st-${r.status}`;
+    tag.textContent = SMS_TAG[r.status];
+    const amt = document.createElement('b');
+    amt.className = r.cancel ? 'in' : 'out';
+    amt.textContent = (r.cancel ? '+' : '-') + won(r.amount);
+    top.append(cb, when, tag, amt);
+    el.appendChild(top);
+    if (r.status === 'new' || r.status === 'dup') {
+      const edit = document.createElement('div');
+      edit.className = 'sms-edit';
+      const name = document.createElement('input');
+      name.type = 'text'; name.value = r.merchant; name.placeholder = '가맹점'; name.setAttribute('aria-label', '가맹점');
+      name.oninput = () => { r.merchant = name.value.trim(); };
+      const sel = document.createElement('select');
+      sel.setAttribute('aria-label', '카테고리');
+      sel.innerHTML = CATEGORIES.out.map((c) => `<option>${c}</option>`).join('');
+      sel.value = r.category;
+      sel.onchange = () => { r.category = sel.value; };
+      edit.append(name, sel);
+      el.appendChild(edit);
+    } else {
+      const nm = document.createElement('div');
+      nm.className = 'sms-name';
+      nm.textContent = r.merchant;
+      el.appendChild(nm);
+    }
+    box.appendChild(el);
+  });
+  const n = smsRows.filter((r) => r.include).length;
+  $('sms-add').textContent = n ? `${n}건 반영` : '반영';
+  $('sms-add').disabled = !n;
+}
+
+function openSms(text) {
+  $('sms-text').value = text || '';
+  analyzeSms($('sms-text').value);
+  renderSms();
+  if (!$('sdlg').open) $('sdlg').showModal();
+}
+$('sms-open').onclick = () => openSms('');
+$('sms-close').onclick = () => $('sdlg').close();
+$('sms-clear').onclick = () => openSms('');
+$('sms-text').addEventListener('input', () => { analyzeSms($('sms-text').value); renderSms(); });
+$('sms-paste').onclick = async () => {
+  try {
+    $('sms-text').value = await navigator.clipboard.readText();
+    analyzeSms($('sms-text').value); renderSms();
+  } catch {
+    alert('클립보드를 읽을 수 없어요. 위 입력칸을 길게 눌러서 직접 붙여넣어 주세요.');
+  }
+};
+$('sms-add').onclick = () => {
+  let added = 0, removed = 0, lastDate = '';
+  smsRows.forEach((r, n) => {
+    if (!r.include) return;
+    if (r.status === 'remove') { items = items.filter((i) => i !== r.target); removed++; return; }
+    items.push({
+      id: Date.now() + n, type: 'out', amount: r.amount, category: r.category, pay: 'card',
+      date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r),
+    });
+    added++; lastDate = r.date;
+  });
+  save();
+  if (lastDate) { const d = parseDate(lastDate); cur = new Date(d.getFullYear(), d.getMonth(), 1); }
+  // 알림 배너를 같이 쓴다
+  fixedNotice = [added && `문자에서 ${added}건을 추가했어요.`, removed && `취소된 ${removed}건은 삭제했어요.`].filter(Boolean).join(' ');
+  tab = 'list';
+  $('sdlg').close();
+  render();
+};
+
 // ---- 내보내기 / 백업 ----
 function download(name, text, type) {
   const a = document.createElement('a');
@@ -759,3 +937,10 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
+
+// 문자 앱에서 '공유'로 열었을 때 (?text=...) 바로 읽기 창을 띄운다
+{
+  const q = new URLSearchParams(location.search);
+  const shared = q.get('text') || q.get('title');
+  if (shared) { history.replaceState(null, '', location.pathname); openSms(shared); }
+}

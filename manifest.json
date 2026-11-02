@@ -4,6 +4,11 @@
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
+  "share_target": {
+    "action": "./index.html",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "background_color": "#2f6fed",
   "theme_color": "#2f6fed",
   "icons": [

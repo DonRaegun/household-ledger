@@ -22,6 +22,7 @@ self.addEventListener('fetch', (e) => {
         caches.open(CACHE).then((c) => c.put(e.request, copy));
         return res;
       })
-      .catch(() => caches.match(e.request))
+      // 문자를 공유해서 열 때는 주소 뒤에 ?text=...가 붙으므로 그 부분은 무시하고 찾는다
+      .catch(() => caches.match(e.request, { ignoreSearch: true }))
   );
 });
