@@ -113,6 +113,7 @@ function cleanItem(i, n) {
   if (typeof i.time === 'string' && TIME_RE.test(i.time)) out.time = i.time;
   if (typeof i.fixedId === 'string') out.fixedId = i.fixedId.slice(0, 40);
   if (typeof i.smsKey === 'string') out.smsKey = i.smsKey.slice(0, 200);
+  if (i.auto === true) out.auto = true;
   return out;
 }
 function cleanFixed(f) {
@@ -131,6 +132,7 @@ function normSettings(s) {
   s = s && typeof s === 'object' ? s : {};
   return {
     npDismissed: s.npDismissed === true,   // '결제 알림 자동 읽기를 켜세요' 안내를 닫았는지
+    autoApply: s.autoApply !== false,      // 확실한 결제 알림을 확인 없이 가계부에 넣을지 (기본: 켬)
     lastBackup: typeof s.lastBackup === 'string' && DATE_RE.test(s.lastBackup) ? s.lastBackup : '',
     backupSnooze: typeof s.backupSnooze === 'string' && DATE_RE.test(s.backupSnooze) ? s.backupSnooze : '',
     lastPay: PAY[s.lastPay] ? s.lastPay : 'card',
@@ -180,6 +182,12 @@ function itemEl(i) {
     const chip = document.createElement('span');
     chip.className = `chip mood-${i.mood}`;
     chip.textContent = MOODS[i.mood];
+    memo.prepend(chip);
+  }
+  if (i.auto) {   // 결제 알림에서 확인 없이 자동으로 들어온 내역 (눌러서 고치면 표시가 사라진다)
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = '자동';
     memo.prepend(chip);
   }
   li.querySelector('.amt').textContent = (i.type === 'out' ? '-' : '+') + won(i.amount);
@@ -239,7 +247,8 @@ function renderExtras() {
   const banner = $('banner');
   banner.hidden = tab !== 'list' || !fixedNotice;
   if (!banner.hidden) {
-    banner.innerHTML = '<div class="msg"></div><div class="row"><button id="fix-ok" class="primary">확인</button></div>';
+    const undo = autoUndo.ids.length && fixedNotice === autoUndo.notice;   // 자동 반영 직후의 알림에만 '되돌리기'
+    banner.innerHTML = `<div class="msg"></div><div class="row">${undo ? '<button id="fix-undo">되돌리기</button>' : ''}<button id="fix-ok" class="primary">확인</button></div>`;
     banner.querySelector('.msg').textContent = fixedNotice;
   }
 
@@ -277,7 +286,8 @@ function renderExtras() {
   pt.hidden = tab !== 'list' || !pending.length;
   if (!pt.hidden) {
     pt.innerHTML = '<span></span><div><button id="pending-clear">지우기</button><button id="pending-open" class="primary">확인</button></div>';
-    pt.querySelector('span').textContent = `결제 알림 ${pending.length}건이 있어요.`;
+    pt.querySelector('span').textContent = settings.autoApply
+      ? `확인이 필요한 결제 알림 ${pending.length}건이 있어요.` : `결제 알림 ${pending.length}건이 있어요.`;
   }
   const nt = $('np-tip');
   nt.hidden = tab !== 'list' || !NP || npEnabled !== false || settings.npDismissed;
@@ -491,6 +501,13 @@ function upcomingFixed() {
 }
 $('banner').addEventListener('click', (e) => {
   if (e.target.id === 'fix-ok') { fixedNotice = null; render(); }
+  else if (e.target.id === 'fix-undo') {   // 방금 자동으로 넣은 내역을 한 번에 지운다
+    const ids = new Set(autoUndo.ids);
+    items = items.filter((i) => !ids.has(i.id));
+    autoUndo = { notice: '', ids: [] };
+    fixedNotice = null;
+    save(); render();
+  }
 });
 
 // ---- 카드 출금 예정 (카드 한 장) ----
@@ -546,6 +563,7 @@ $('card-start').onchange = (e) => {
 };
 
 function renderSettings() {
+  $('auto-apply').checked = settings.autoApply;
   $('remind-days').value = settings.remindDays;
   $('ics-card').disabled = !settings.cardDay;
   $('ics-fixed').disabled = !settings.fixed.length;
@@ -583,6 +601,16 @@ function fillFixedList(list, rows) {
   }
 }
 
+// 창을 열 때의 커서 위치. 브라우저의 showModal()은 아무 지정이 없으면 첫 입력칸을 자동으로 선택해서
+// (폰에서는 키보드가 올라와 내용을 가린다), 새로 입력할 때만 지정한 칸(first)에 커서를 두고
+// 이미 있는 항목을 볼 때(first가 null)는 창 자체에 포커스를 두어 어느 칸도 선택되지 않게 한다.
+function openWithFocus(dlg, first) {
+  dlg.toggleAttribute('autofocus', !first);
+  dlg.showModal();
+  if (first) first.focus();
+  else dlg.focus();
+}
+
 function openFixed(f) {
   fEditing = f || null;
   $('fdlg-title').textContent = f ? '고정지출 수정' : '고정지출 추가';
@@ -595,8 +623,7 @@ function openFixed(f) {
   $('fsub').checked = !!(f && f.sub);
   const fm = f ? f.mood || '' : 'need';   // 새 고정지출은 '필수'가 기본
   document.querySelectorAll('input[name=fmood]').forEach((r) => (r.checked = r.value === fm));
-  $('fdlg').showModal();
-  if (!f) $('fname').focus();
+  openWithFocus($('fdlg'), f ? null : $('fname'));
 }
 $('fixed-add').onclick = () => openFixed();
 $('fcancel').onclick = () => $('fdlg').close();
@@ -702,8 +729,7 @@ function openDialog(item) {
   $('memo').value = item ? item.memo : '';
   setMore(!!item);          // 새 내역은 접어 두고(기본값으로 저장), 수정할 때는 값이 보이게 펼친다
   updateMoreSum();
-  $('dlg').showModal();
-  if (!item) $('amount').focus();
+  openWithFocus($('dlg'), item ? null : $('amount'));
 }
 
 document.querySelectorAll('input[name=type]').forEach((r) =>
@@ -759,7 +785,7 @@ $('form').addEventListener('submit', () => {
     memo: $('memo').value.trim(),
   };
   if (data.pay) { settings.lastPay = data.pay; saveSettings(); }
-  if (editing) Object.assign(editing, data);
+  if (editing) Object.assign(editing, data, { auto: undefined });   // 직접 확인하고 저장했으니 '자동' 표시는 뺀다
   else items.push({ id: Date.now(), ...data });
   save();
   if (data.date.slice(0, 7) !== ym(cur)) {
@@ -919,6 +945,7 @@ function parseSms(block) {
     cancel, amount: Number(a[1].replace(/,/g, '')),
     date: `${y}-${pad(mo)}-${pad(da)}`, time: `${pad(hh)}:${pad(mi)}`,
     merchant, inst: inst ? Number(inst[1]) : 0,
+    whenFromText: !!w,   // 날짜·시각이 글 안에 있었는지 (알림이 도착한 시각으로 대신한 것이 아닌지)
   };
 }
 
@@ -944,8 +971,9 @@ function analyzeSms(text) {
   const when = (r) => `${r.date} ${r.time}`;
   const used = new Set();
   for (const c of smsRows.filter((r) => r.cancel)) {
+    // 이미 가계부에 들어간 결제가 다시 온 알림(isDup)은 짝으로 삼지 않는다. 그래야 취소가 가계부의 그 결제를 지운다
     const mate = smsRows.find((r) => !r.cancel && !used.has(r) && r.amount === c.amount &&
-      r.merchant === c.merchant && when(r) <= when(c));
+      r.merchant === c.merchant && when(r) <= when(c) && !isDup(r));
     if (mate) { used.add(mate); mate.status = c.status = 'offset'; mate.include = c.include = false; continue; }
     const target = [...items].sort(byNewest).find((i) => i.type === 'out' && i.amount === c.amount &&
       (!c.merchant || stripInst(i.memo) === c.merchant) && i.date <= c.date);
@@ -1079,6 +1107,38 @@ const alertStamp = (t) => {
   const d = new Date(Number(t) || Date.now());
   return `${ym(d)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+const pendingText = (p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`;
+let autoUndo = { notice: '', ids: [] };   // 방금 자동으로 넣은 내역 (배너의 '되돌리기'가 지운다)
+
+// 확실한 결제만 확인 없이 가계부에 넣는다. 조건: 새 결제(중복·취소·승인취소 짝이 아님) + 금액 + 가맹점 +
+// 날짜·시각이 글 안에 있음. 하나라도 빠지거나 취소면 지금처럼 대기 목록에 두고 확인을 받는다.
+function autoApplyPending() {
+  if (!NP || !settings.autoApply || !pending.length || $('sdlg').open) return;   // 확인 창을 보는 중에는 건드리지 않는다
+  analyzeSms(pending.map(pendingText).join('\n'));
+  const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && r.whenFromText && r.merchant && r.amount > 0);
+  const known = smsRows.filter((r) => r.status === 'dup');   // 이미 가계부에 있는 결제
+  if (!sure.length && !known.length) return;
+  const added = sure.map((r, n) => ({
+    id: Date.now() + n, type: 'out', amount: r.amount, category: r.category, pay: 'card',
+    date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r), auto: true,
+  }));
+  items.push(...added);
+  // 넣은 것, 이미 있던 것, 같은 알림이 반복된 것만 대기 목록에서 지운다 (나머지는 확인 대기)
+  const done = new Set([...sure, ...known].map(smsKey));
+  pending = pending.filter((p) => { const e = parseSms(pendingText(p)); return !e || !done.has(smsKey(e)); });
+  save(); savePending();
+  if (added.length) {
+    // 아직 배너가 떠 있는 동안 이어서 들어온 것은 합쳐서 보여 주고, 되돌리기도 한꺼번에 지운다
+    const prev = fixedNotice && fixedNotice === autoUndo.notice ? autoUndo.ids : [];
+    const ids = [...prev, ...added.map((i) => i.id)];
+    const notice = `결제 ${ids.length}건이 자동으로 추가됐어요.`;
+    autoUndo = { notice, ids };
+    fixedNotice = notice;   // 알림 배너를 같이 쓴다
+    const d = parseDate(added[added.length - 1].date);
+    cur = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+}
+
 // 안드로이드 쪽 대기열에서 알림을 꺼내 온다. 꺼낸 즉시 이 앱의 저장소에 보관해서 잃어버리지 않게 한다.
 async function pullPending() {
   if (!NP) return;
@@ -1089,6 +1149,7 @@ async function pullPending() {
       savePending();
     }
   } catch { /* 플러그인을 쓸 수 없는 상황이면 건너뛴다 */ }
+  autoApplyPending();
   render();
 }
 async function refreshNp() {
@@ -1103,9 +1164,15 @@ async function refreshNp() {
   render();
 }
 $('np-open').onclick = () => { if (NP) NP.openSettings(); };
+$('auto-apply').onchange = (e) => {
+  settings.autoApply = e.target.checked;
+  saveSettings();
+  if (settings.autoApply) autoApplyPending();   // 켜는 순간, 기다리던 확실한 결제를 바로 넣는다
+  render();
+};
 $('pending-tip').addEventListener('click', async (e) => {
   if (e.target.id === 'pending-open') {
-    openSms(pending.map((p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`).join('\n'), true);
+    openSms(pending.map(pendingText).join('\n'), true);
   } else if (e.target.id === 'pending-clear') {
     if (await ask(`모아 둔 결제 알림 ${pending.length}건을 지울까요?`, { yes: '지우기', danger: true })) {
       pending = []; savePending(); render();

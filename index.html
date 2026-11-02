@@ -84,6 +84,8 @@
           <span>알림 접근 <b id="np-state"></b></span>
           <button type="button" id="np-open">알림 접근 켜기</button>
         </div>
+        <label class="check auto-row"><input id="auto-apply" type="checkbox"> 확인 없이 자동으로 가계부에 넣기</label>
+        <p class="hint">금액, 가맹점, 날짜·시각이 모두 읽힌 <b>새 결제만</b> 자동으로 넣어요. 취소이거나 하나라도 불확실한 알림은 확인을 받고, 넣은 직후에는 "되돌리기"로 지울 수 있어요. 자동으로 들어간 내역에는 "자동" 표시가 붙고, 눌러서 고치면 표시가 사라져요.</p>
         <p class="hint">켜면 문자와 카드·은행 앱의 <b>결제 알림만</b> 골라서 이 앱에 모아 둬요. 그 밖의 알림은 저장하지 않고 버리고, 카드 끝자리와 가려진 이름도 저장 전에 지워요. 모아 둔 알림은 앱에서 확인한 뒤에만 가계부에 들어가요. 갤럭시에서 알림이 안 모이면 "배터리 → 절전 제외 앱"에 이 앱을 추가해 주세요.</p>
       </div>
     </div>
@@ -136,7 +138,7 @@
 </nav>
 <button id="fab" aria-label="추가">+</button>
 
-<dialog id="dlg">
+<dialog id="dlg" tabindex="-1">
   <form id="form" method="dialog">
     <h2 id="dlg-title">내역 추가</h2>
     <div class="seg">
@@ -177,7 +179,7 @@
   </form>
 </dialog>
 
-<dialog id="fdlg">
+<dialog id="fdlg" tabindex="-1">
   <form id="fform" method="dialog">
     <h2 id="fdlg-title">고정지출 추가</h2>
     <input id="fname" type="text" placeholder="이름 (예: 월세, 넷플릭스)" required autocomplete="off">
