@@ -130,6 +130,7 @@ function cleanFixed(f) {
 function normSettings(s) {
   s = s && typeof s === 'object' ? s : {};
   return {
+    npDismissed: s.npDismissed === true,   // '결제 알림 자동 읽기를 켜세요' 안내를 닫았는지
     lastBackup: typeof s.lastBackup === 'string' && DATE_RE.test(s.lastBackup) ? s.lastBackup : '',
     backupSnooze: typeof s.backupSnooze === 'string' && DATE_RE.test(s.backupSnooze) ? s.backupSnooze : '',
     lastPay: PAY[s.lastPay] ? s.lastPay : 'card',
@@ -270,7 +271,20 @@ function renderExtras() {
     tip.innerHTML = '<span></span><div><button id="tip-snooze">나중에</button><button id="tip-backup" class="primary">백업</button></div>';
     tip.querySelector('span').textContent = why;
   }
-  $('info-box').hidden = box.hidden && up.hidden && tip.hidden;
+
+  // 안드로이드 앱: 모아 둔 결제 알림이 있으면 알리고, 알림 접근이 꺼져 있으면 켜도록 안내한다
+  const pt = $('pending-tip');
+  pt.hidden = tab !== 'list' || !pending.length;
+  if (!pt.hidden) {
+    pt.innerHTML = '<span></span><div><button id="pending-clear">지우기</button><button id="pending-open" class="primary">확인</button></div>';
+    pt.querySelector('span').textContent = `결제 알림 ${pending.length}건이 있어요.`;
+  }
+  const nt = $('np-tip');
+  nt.hidden = tab !== 'list' || !NP || npEnabled !== false || settings.npDismissed;
+  if (!nt.hidden) {
+    nt.innerHTML = '<span>결제 알림 자동 읽기가 꺼져 있어요.</span><div><button id="np-tip-later">나중에</button><button id="np-tip-on" class="primary">켜기</button></div>';
+  }
+  $('info-box').hidden = box.hidden && up.hidden && tip.hidden && pt.hidden && nt.hidden;
 }
 function backupDue() {
   if (!items.length || (settings.backupSnooze && settings.backupSnooze > today())) return null;
@@ -852,11 +866,13 @@ const CAT_GUESS = [
 const stripInst = (memo) => String(memo || '').replace(/ \d+개월 할부$/, '');
 
 // 붙여넣은 글을 문자 한 통씩 나눈다 (카톡에서 복사한 '[이름] [오후 12:31]' 머리글도 경계로 쓴다)
+const ALERT_LINE = /^\s*\[알림 \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]\s*$/;   // 안드로이드 앱이 알림 앞에 붙이는 도착 시각 줄
 function splitSms(text) {
   const blocks = [];
   let cur = [];
   for (const line of text.replace(/\r/g, '').split('\n')) {
-    if (SMS_START.test(line) && SMS_WHEN.test(cur.join('\n'))) { blocks.push(cur.join('\n')); cur = []; }
+    const startsAlert = ALERT_LINE.test(line) && cur.some((l) => l.trim());
+    if (startsAlert || (SMS_START.test(line) && SMS_WHEN.test(cur.join('\n')))) { blocks.push(cur.join('\n')); cur = []; }
     cur.push(line);
   }
   if (cur.length) blocks.push(cur.join('\n'));
@@ -865,17 +881,30 @@ function splitSms(text) {
 
 // 문자 한 통 -> { cancel, amount, date, time, merchant, inst } (결제 문자가 아니면 null)
 function parseSms(block) {
+  // 알림으로 받은 글은 맨 앞에 '[알림 2026-11-02 06:12]'(도착 시각) 줄이 붙어 있다
+  let posted = null;
+  block = block.replace(/^\s*\[알림 (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\]\s*$/m, (_, ...g) => {
+    posted = g.slice(0, 5).map(Number);
+    return '';
+  });
   const w = block.match(SMS_WHEN);
   const a = block.match(/(\d[\d,]*)\s*원/);
-  if (!w || !a) return null;
+  if (!a || (!w && !posted)) return null;
   const cancel = /취소/.test(block);
   if (!cancel && !/승인|결제/.test(block)) return null;
-  const [mo, da, hh, mi] = [Number(w[1]), Number(w[2]), Number(w[3]), Number(w[4])];
-  // 문자에는 연도가 없어서 올해로 보고, 많이 미래면 작년으로 본다 (1월에 12월 문자를 읽는 경우)
-  const now = new Date();
-  let y = now.getFullYear();
-  if (new Date(y, mo - 1, da, hh, mi) - now > 36 * 3600 * 1000) y--;
-  const rest = block.slice(block.indexOf(w[0]) + w[0].length);
+  let y, mo, da, hh, mi, rest;
+  if (w) {
+    [mo, da, hh, mi] = [Number(w[1]), Number(w[2]), Number(w[3]), Number(w[4])];
+    // 문자에는 연도가 없어서 올해로 보고, 많이 미래면 작년으로 본다 (1월에 12월 문자를 읽는 경우)
+    const now = new Date();
+    y = now.getFullYear();
+    if (new Date(y, mo - 1, da, hh, mi) - now > 36 * 3600 * 1000) y--;
+    rest = block.slice(block.indexOf(w[0]) + w[0].length);
+  } else {
+    // 글 안에 날짜·시각이 없으면 알림이 도착한 시각을 결제 시각으로 본다. 가맹점은 금액 뒤의 글로 짐작한다
+    [y, mo, da, hh, mi] = posted;
+    rest = block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '');
+  }
   const merchant = (rest.split('\n').map((s) => s.trim()).find(Boolean) || '')
     .replace(/（/g, '(').replace(/）/g, ')');
   const inst = block.match(/(\d+)\s*개월/);
@@ -916,15 +945,18 @@ function analyzeSms(text) {
     if (target) { c.status = 'remove'; c.target = target; }
     else { c.status = 'missing'; c.include = false; }
   }
+  const seen = new Set();   // 같은 알림이 두 번 온 경우(갱신 등)를 한 건만 반영하려고
   for (const r of smsRows) {
     if (r.status !== 'new') continue;
     r.category = guessCategory(r.merchant);
     if (isDup(r)) { r.status = 'dup'; r.include = false; }
+    else if (seen.has(smsKey(r))) { r.status = 'again'; r.include = false; }
+    seen.add(smsKey(r));
   }
   smsRows.sort((a, b) => when(a).localeCompare(when(b)));
 }
 
-const SMS_TAG = { new: '새 내역', dup: '이미 있어요', offset: '상쇄', remove: '기존 내역 삭제', missing: '원결제 없음' };
+const SMS_TAG = { new: '새 내역', dup: '이미 있어요', again: '같은 알림', offset: '상쇄', remove: '기존 내역 삭제', missing: '원결제 없음' };
 function renderSms() {
   const box = $('sms-result');
   box.innerHTML = '';
@@ -951,7 +983,7 @@ function renderSms() {
     amt.textContent = (r.cancel ? '+' : '-') + won(r.amount);
     top.append(cb, when, tag, amt);
     el.appendChild(top);
-    if (r.status === 'new' || r.status === 'dup') {
+    if (r.status === 'new' || r.status === 'dup' || r.status === 'again') {
       const edit = document.createElement('div');
       edit.className = 'sms-edit';
       const name = document.createElement('input');
@@ -977,11 +1009,15 @@ function renderSms() {
   $('sms-add').disabled = !n;
 }
 
-function openSms(text) {
+let smsFromPending = false;   // 안드로이드 앱이 모아 둔 알림을 보고 있는 중이면 true (반영하면 대기 목록을 비운다)
+function openSms(text, fromPending = false) {
+  smsFromPending = fromPending;
   $('sms-text').value = text || '';
   analyzeSms($('sms-text').value);
   renderSms();
   if (!$('sdlg').open) $('sdlg').showModal();
+  // 읽을 글이 이미 있으면(모아 둔 알림, 공유) 입력할 일이 없으니 키보드가 올라와 목록을 가리지 않게 한다
+  if ($('sms-text').value.trim()) $('sms-text').blur();
 }
 $('sms-open').onclick = () => openSms('');
 $('sms-close').onclick = () => $('sdlg').close();
@@ -1011,9 +1047,68 @@ $('sms-add').onclick = () => {
   // 알림 배너를 같이 쓴다
   fixedNotice = [added && `문자에서 ${added}건을 추가했어요.`, removed && `취소된 ${removed}건은 삭제했어요.`].filter(Boolean).join(' ');
   tab = 'list';
+  if (smsFromPending) { pending = []; savePending(); smsFromPending = false; }
   $('sdlg').close();
   render();
 };
+
+// ---- 결제 알림 자동 읽기 (안드로이드 앱 안에서만 동작) ----
+// 앱 안에서는 window.Capacitor가 있고 네이티브 플러그인에 접근할 수 있다. 일반 브라우저에서는 null이라 아무 일도 하지 않는다.
+const NP = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+  ? window.Capacitor.Plugins.PaymentNotifications : null;
+const PKEY = 'ledger.pending.v1';
+let npEnabled = null;   // 알림 접근이 켜져 있는지 (아직 모르면 null)
+let pending = loadPending();   // 안드로이드가 모아 둔 결제 알림 중 아직 확인하지 않은 것
+function loadPending() {
+  try {
+    const v = JSON.parse(localStorage.getItem(PKEY));
+    return Array.isArray(v) ? v.filter((p) => p && typeof p.text === 'string') : [];
+  } catch { return []; }
+}
+function savePending() {
+  try { localStorage.setItem(PKEY, JSON.stringify(pending)); } catch { warnStorage(); }
+}
+const alertStamp = (t) => {
+  const d = new Date(Number(t) || Date.now());
+  return `${ym(d)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+// 안드로이드 쪽 대기열에서 알림을 꺼내 온다. 꺼낸 즉시 이 앱의 저장소에 보관해서 잃어버리지 않게 한다.
+async function pullPending() {
+  if (!NP) return;
+  try {
+    const { items: got } = await NP.drain();
+    if (got && got.length) {
+      pending = pending.concat(got.filter((p) => p && typeof p.text === 'string')).slice(-200);
+      savePending();
+    }
+  } catch { /* 플러그인을 쓸 수 없는 상황이면 건너뛴다 */ }
+  render();
+}
+async function refreshNp() {
+  $('np-section').hidden = !NP;
+  if (!NP) return;
+  try {
+    npEnabled = (await NP.isEnabled()).enabled;
+    $('np-state').textContent = npEnabled ? '켜져 있어요' : '꺼져 있어요';
+    $('np-state').className = npEnabled ? 'on' : 'off';
+    $('np-open').textContent = npEnabled ? '설정 열기' : '알림 접근 켜기';
+  } catch { /* 무시 */ }
+  render();
+}
+$('np-open').onclick = () => { if (NP) NP.openSettings(); };
+$('pending-tip').addEventListener('click', async (e) => {
+  if (e.target.id === 'pending-open') {
+    openSms(pending.map((p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`).join('\n'), true);
+  } else if (e.target.id === 'pending-clear') {
+    if (await ask(`모아 둔 결제 알림 ${pending.length}건을 지울까요?`, { yes: '지우기', danger: true })) {
+      pending = []; savePending(); render();
+    }
+  }
+});
+$('np-tip').addEventListener('click', (e) => {
+  if (e.target.id === 'np-tip-on' && NP) NP.openSettings();
+  else if (e.target.id === 'np-tip-later') { settings.npDismissed = true; saveSettings(); render(); }
+});
 
 // ---- 내보내기 / 백업 ----
 function download(name, text, type) {
@@ -1085,10 +1180,18 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 // 앱을 켜 둔 채 날짜가 바뀌었거나 백그라운드에서 돌아왔을 때도 고정지출을 반영
-document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  render();
+  refreshNp();      // 설정 화면에서 알림 접근을 켜고 돌아왔을 수 있다
+  pullPending();    // 앱이 꺼져 있는 동안 받은 결제 알림을 가져온다
+});
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();
+refreshNp();
+pullPending();
+if (NP) NP.addListener('queued', () => pullPending());   // 앱이 열려 있을 때 새 결제 알림이 오면 바로 반영
 
 // 저장된 데이터를 읽지 못했다면 첫 화면에서 알린다
 if (storageWarning) { fixedNotice = storageWarning; render(); }
