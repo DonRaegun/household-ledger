@@ -854,10 +854,11 @@ $('ics-fixed').onclick = () => {
 // ---- 결제 문자 읽기 (붙여넣기 / 공유) ----
 // 카드 승인 문자나 앱 알림에서 금액, 가맹점, 결제 시각을 읽어 입력을 돕는다.
 // 카드번호와 이름은 읽지도 저장하지도 않는다. 읽은 결과는 확인 창에서 고친 뒤에만 반영된다.
-const SMS_START = /^\s*(\[[^\]\n]+\]\s*\[[^\]\n]+\]|\[Web발신\]|●)/i;   // 문자 한 통이 시작되는 줄
+// 문자 한 통이 시작되는 줄: 머리글('[이름] [시각]', '[Web발신]', '●') 또는 카드 이름+끝자리만 있는 줄('KB국민체크1234')
+const SMS_START = /^\s*(\[[^\]\n]+\]\s*\[[^\]\n]+\]|\[Web발신\]|●|[가-힣A-Za-z]*(?:체크|카드|신용)[가-힣A-Za-z]*\d{3,4}\s*$)/i;
 const SMS_WHEN = /(\d{1,2})[\/.](\d{1,2})\s+(\d{1,2}):(\d{2})/;       // '10/10 20:15'
 const CAT_GUESS = [
-  [/카페|커피|스타벅스|투썸|이디야|메가|빽다방|할리스/, '카페'],
+  [/카페|커피|스타벅스|투썸|이디야|메가|빽다방|할리스|매머드|컴포즈|더벤티|파스쿠찌|엔제리너스|폴바셋/, '카페'],
   [/편의점|GS25|CU|세븐일레븐|마트|식당|정육|치킨|피자|분식|김밥|국밥|횟집|고기|배달|맥도날|버거|도시락|반찬/, '식비'],
   [/주유|택시|지하철|버스|티머니|코레일|철도|하이패스|주차/, '교통'],
   [/병원|의원|약국|치과|한의원/, '의료'],
@@ -878,6 +879,11 @@ function splitSms(text) {
   if (cur.length) blocks.push(cur.join('\n'));
   return blocks.filter((b) => b.trim());
 }
+
+// 가맹점이 아닌 줄: 카드·승인 안내, 고객명, 승인시각, 금액, 날짜 같은 라벨
+const LABEL_LINE = /^(\[?Web발신\]?|●.*|일시불|\d+\s*개월|고객명.*|.*님$|승인시각.*|.*(승인|취소|결제).*|.*(카드|체크|신용).*|.*(잔액|누적|한도).*)$/;
+const textLines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+const isMerchantLine = (l) => !/\d[\d,]*\s*원/.test(l) && !SMS_WHEN.test(l) && !LABEL_LINE.test(l);
 
 // 문자 한 통 -> { cancel, amount, date, time, merchant, inst } (결제 문자가 아니면 null)
 function parseSms(block) {
@@ -905,7 +911,8 @@ function parseSms(block) {
     [y, mo, da, hh, mi] = posted;
     rest = block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '');
   }
-  const merchant = (rest.split('\n').map((s) => s.trim()).find(Boolean) || '')
+  // 가맹점: 날짜·시각 뒤(우리카드 형식)에서 먼저 찾고, 없으면 글 전체에서 라벨 줄을 뺀 첫 줄(KB국민 형식: 금액 뒤·날짜 앞)을 쓴다
+  const merchant = (textLines(rest).find(isMerchantLine) || textLines(block).find(isMerchantLine) || '')
     .replace(/（/g, '(').replace(/）/g, ')');
   const inst = block.match(/(\d+)\s*개월/);
   return {
