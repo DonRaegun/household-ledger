@@ -1,0 +1,11 @@
+# 앱에서 내려받은 내 가계부 데이터 (실제 지출 내역이 들어 있음 - 절대 커밋 금지)
+*.csv
+*백업*
+*backup*
+
+# 개발용 설정, 편집기/OS 파일
+.claude/
+.vscode/
+.DS_Store
+Thumbs.db
+node_modules/

@@ -1,0 +1,612 @@
+const CATEGORIES = {
+  out: ['식비', '카페', '교통', '쇼핑', '주거/통신', '의료', '보험', '문화/여가', '경조사', '기타'],
+  in: ['급여', '용돈', '부수입', '기타'],
+};
+const COLORS = {
+  '식비': '#f59e0b', '카페': '#a16207', '교통': '#3b82f6', '쇼핑': '#ec4899',
+  '주거/통신': '#14b8a6', '의료': '#ef4444', '보험': '#6366f1', '문화/여가': '#8b5cf6', '경조사': '#84cc16',
+  '급여': '#16a34a', '용돈': '#06b6d4', '부수입': '#65a30d', '기타': '#94a3b8',
+};
+const PAY = { cash: '현금', card: '카드', transfer: '계좌이체' };
+const color = (c) => COLORS[c] || COLORS['기타'];
+const KEY = 'ledger.v1';
+const SKEY = 'ledger.settings.v1';
+const $ = (id) => document.getElementById(id);
+const won = (n) => n.toLocaleString('ko-KR') + '원';
+// 달력 칸처럼 좁은 곳에 쓰는 짧은 금액 표기 (320000 -> 32만)
+const short = (n) => n >= 10000
+  ? String(Math.round(n / 1000) / 10).replace(/\.0$/, '') + '만'
+  : n.toLocaleString('ko-KR');
+
+let items = load();
+let settings = loadSettings();
+let cur = new Date(); cur.setDate(1);
+let tab = 'list';          // 'list' | 'stats' | 'settings'
+let listMode = 'list';     // 'list' | 'cal'
+let statsMode = 'month';   // 'month' | 'year'
+let selCat = null;         // 도넛에서 선택한 카테고리
+let selDay = null;         // 달력에서 선택한 날짜
+let editing = null;
+let fEditing = null;
+
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(items)); }
+function normSettings(s) {
+  s = s && typeof s === 'object' ? s : {};
+  return {
+    lastPay: PAY[s.lastPay] ? s.lastPay : 'card',
+    cardDay: Number(s.cardDay) >= 1 && Number(s.cardDay) <= 31 ? Number(s.cardDay) : null,
+    cardStart: Number(s.cardStart) >= 1 && Number(s.cardStart) <= 31 ? Number(s.cardStart) : 1,
+    fixed: Array.isArray(s.fixed) ? s.fixed : [],
+    applied: s.applied && typeof s.applied === 'object' ? s.applied : {},
+  };
+}
+function loadSettings() {
+  try { return normSettings(JSON.parse(localStorage.getItem(SKEY))); } catch { return normSettings(); }
+}
+function saveSettings() { localStorage.setItem(SKEY, JSON.stringify(settings)); }
+
+const pad = (n) => String(n).padStart(2, '0');
+function ym(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+function today() {
+  const d = new Date();
+  return `${ym(d)}-${pad(d.getDate())}`;
+}
+// 'YYYY-MM-DD'를 로컬 시간 기준 Date로 (new Date(문자열)은 UTC로 읽혀 날짜가 밀릴 수 있음)
+function parseDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function dayLabel(s) {
+  const d = parseDate(s);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})`;
+}
+// 해당 월에 없는 날(31일 등)은 말일로 맞춘다
+const clampDay = (y, m, day) => Math.min(day, new Date(y, m + 1, 0).getDate());
+
+function itemEl(i) {
+  const li = document.createElement('li');
+  li.className = 'item';
+  li.innerHTML = `<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
+  li.querySelector('.dot').style.background = color(i.category);
+  li.querySelector('.cat span').textContent = i.category;
+  const bits = [];
+  if (i.type === 'out' && PAY[i.pay]) bits.push(PAY[i.pay]);
+  if (i.memo) bits.push(i.memo);
+  li.querySelector('.memo').textContent = bits.join(' · ');
+  li.querySelector('.amt').textContent = (i.type === 'out' ? '-' : '+') + won(i.amount);
+  li.onclick = () => openDialog(i);
+  return li;
+}
+const byNewest = (a, b) => b.date.localeCompare(a.date) || b.id - a.id;
+
+function render() {
+  autoApplyFixed();
+  const yearView = tab === 'stats' && statsMode === 'year';
+  const y = cur.getFullYear();
+  $('month').textContent = tab === 'settings' ? '설정'
+    : yearView ? `${y}년` : `${y}년 ${cur.getMonth() + 1}월`;
+  $('prev').style.visibility = $('next').style.visibility = tab === 'settings' ? 'hidden' : 'visible';
+
+  const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
+  const period = yearView ? items.filter((i) => i.date.startsWith(y + '-')) : month;
+
+  const sum = (t) => period.filter((i) => i.type === t).reduce((s, i) => s + i.amount, 0);
+  const inc = sum('in'), out = sum('out');
+  $('sum-in').textContent = won(inc);
+  $('sum-out').textContent = won(out);
+  $('sum-bal').textContent = won(inc - out);
+  $('summary').hidden = tab === 'settings';
+
+  $('view-list').hidden = tab !== 'list';
+  $('view-stats').hidden = tab !== 'stats';
+  $('view-settings').hidden = tab !== 'settings';
+  $('fab').hidden = tab !== 'list';
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('#list-mode button').forEach((b) => b.classList.toggle('active', b.dataset.lmode === listMode));
+  document.querySelectorAll('#stats-mode button').forEach((b) => b.classList.toggle('active', b.dataset.mode === statsMode));
+
+  renderExtras();
+  if (tab === 'list') {
+    $('list-wrap').hidden = listMode !== 'list';
+    $('view-cal').hidden = listMode !== 'cal';
+    if (listMode === 'list') renderList(month);
+    else renderCal(month);
+  } else if (tab === 'stats') {
+    renderStats(period, out, yearView);
+  } else {
+    renderSettings();
+  }
+}
+
+// 내역 탭 위쪽: 고정지출 확인 배너와 카드 출금 예정
+function renderExtras() {
+  const banner = $('banner');
+  banner.hidden = tab !== 'list' || !fixedNotice;
+  if (!banner.hidden) {
+    banner.innerHTML = '<div class="msg"></div><div class="row"><button id="fix-ok" class="primary">확인</button></div>';
+    banner.querySelector('.msg').textContent = fixedNotice;
+  }
+
+  const upcoming = upcomingFixed();
+  const up = $('upcoming');
+  up.hidden = tab !== 'list' || !upcoming.length;
+  if (!up.hidden) {
+    const names = upcoming.slice(0, 2).map((u) => `${Number(u.date.slice(8))}일 ${u.f.name}`).join(', ');
+    up.innerHTML = '<span></span><b></b>';
+    up.querySelector('span').textContent = `예정 고정지출 ${upcoming.length}건 (${names}${upcoming.length > 2 ? ' 외' : ''})`;
+    up.querySelector('b').textContent = won(upcoming.reduce((s, u) => s + u.f.amount, 0));
+  }
+
+  const info = cardInfo();
+  const box = $('card-info');
+  box.hidden = tab !== 'list' || !info;
+  if (!box.hidden) {
+    box.innerHTML = '<span>카드 출금 <em></em><small></small></span><b></b>';
+    box.querySelector('em').textContent = `${info.when} (${info.dateText})`;
+    box.querySelector('small').textContent = `${info.period} 사용분`;
+    box.querySelector('b').textContent = `예정 ${won(info.amount)}`;
+  }
+}
+
+function renderList(month) {
+  const list = $('list');
+  list.innerHTML = '';
+  let lastDate = '';
+  for (const i of month) {
+    if (i.date !== lastDate) {
+      lastDate = i.date;
+      const li = document.createElement('li');
+      li.className = 'day';
+      li.textContent = dayLabel(i.date);
+      list.appendChild(li);
+    }
+    list.appendChild(itemEl(i));
+  }
+  $('empty').hidden = month.length > 0;
+}
+
+function renderCal(month) {
+  const y = cur.getFullYear(), m = cur.getMonth();
+  if (!selDay || !selDay.startsWith(ym(cur))) selDay = today().startsWith(ym(cur)) ? today() : null;
+
+  const sums = {};
+  for (const i of month) {
+    const s = (sums[i.date] ||= { in: 0, out: 0 });
+    s[i.type] += i.amount;
+  }
+  const blanks = new Date(y, m, 1).getDay();
+  const days = new Date(y, m + 1, 0).getDate();
+  let html = '<div></div>'.repeat(blanks);
+  for (let d = 1; d <= days; d++) {
+    const date = `${ym(cur)}-${pad(d)}`;
+    const s = sums[date];
+    const cls = ['day-cell', date === today() ? 'today' : '', date === selDay ? 'sel' : ''].join(' ');
+    html += `<button class="${cls}" data-date="${date}"><b>${d}</b>` +
+      `<span class="o">${s && s.out ? short(s.out) : ''}</span>` +
+      `<span class="n">${s && s.in ? short(s.in) : ''}</span></button>`;
+  }
+  $('cal-grid').innerHTML = html;
+
+  const list = $('cal-list');
+  list.innerHTML = '';
+  const head = document.createElement('li');
+  head.className = 'day';
+  if (!selDay) {
+    head.textContent = '날짜를 눌러 그날의 내역을 확인하세요.';
+    list.appendChild(head);
+    return;
+  }
+  head.textContent = dayLabel(selDay);
+  list.appendChild(head);
+  const dayItems = month.filter((i) => i.date === selDay);
+  if (!dayItems.length) {
+    const li = document.createElement('li');
+    li.className = 'none';
+    li.textContent = '내역이 없어요.';
+    list.appendChild(li);
+  }
+  dayItems.forEach((i) => list.appendChild(itemEl(i)));
+}
+
+function renderStats(period, out, yearView) {
+  $('year-wrap').hidden = !yearView;
+  if (yearView) renderYearBars(period);
+
+  const outs = period.filter((i) => i.type === 'out');
+  const byCat = {};
+  outs.forEach((i) => (byCat[i.category] = (byCat[i.category] || 0) + i.amount));
+  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  if (selCat && !byCat[selCat]) selCat = null;
+
+  const stats = $('stats');
+  stats.innerHTML = '';
+  if (!rows.length) stats.innerHTML = '<li class="plain">지출 내역이 없어요.</li>';
+  for (const [cat, amt] of rows) {
+    const li = document.createElement('li');
+    li.dataset.cat = cat;
+    if (cat === selCat) li.classList.add('sel');
+    li.innerHTML = '<div class="top"><span class="name"><i class="dot"></i><em></em></span><b></b></div><div class="bar"><i></i></div>';
+    li.querySelector('.dot').style.background = color(cat);
+    li.querySelector('em').textContent = `${cat} (${Math.round((amt / out) * 100)}%)`;
+    li.querySelector('b').textContent = won(amt);
+    const bar = li.querySelector('.bar i');
+    bar.style.width = (amt / rows[0][1]) * 100 + '%';
+    bar.style.background = color(cat);
+    stats.appendChild(li);
+  }
+  renderDonut(rows, out);
+
+  // 결제수단별 합계 (결제수단이 없는 예전 내역은 '미지정')
+  const byPay = { cash: 0, card: 0, transfer: 0, none: 0 };
+  outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount));
+  $('pay-wrap').hidden = !outs.length;
+  $('pay-stats').innerHTML = [...Object.keys(PAY), 'none']
+    .filter((k) => k !== 'none' || byPay.none)
+    .map((k) => `<li><span>${PAY[k] || '미지정'}</span><span class="pct">${out ? Math.round((byPay[k] / out) * 100) : 0}%</span><b>${won(byPay[k])}</b></li>`)
+    .join('');
+}
+
+function renderYearBars(period) {
+  const months = Array(12).fill(0);
+  period.filter((i) => i.type === 'out').forEach((i) => (months[Number(i.date.slice(5, 7)) - 1] += i.amount));
+  const max = Math.max(...months, 1);
+  const nowM = today().slice(0, 4) === String(cur.getFullYear()) ? Number(today().slice(5, 7)) - 1 : -1;
+  $('year-bars').innerHTML = months.map((v, k) =>
+    `<button data-m="${k}" class="${k === nowM ? 'now' : ''}">` +
+    `<small>${v ? short(v) : ''}</small>` +
+    `<div class="col"><i style="height:${(v / max) * 100}%"></i></div>` +
+    `<em>${k + 1}월</em></button>`).join('');
+}
+
+function renderDonut(rows, total) {
+  const svg = $('donut');
+  const R = 38, C = 2 * Math.PI * R;
+  const sel = rows.find(([c]) => c === selCat);
+  $('donut-label').textContent = sel ? sel[0] : '총 지출';
+  $('donut-total').textContent = won(sel ? sel[1] : total);
+  $('donut-pct').textContent = sel ? `${Math.round((sel[1] / total) * 100)}%` : '';
+  if (!rows.length) {
+    svg.innerHTML = `<circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--line)" stroke-width="16"/>`;
+    return;
+  }
+  let start = 0;
+  svg.innerHTML = rows.map(([cat, amt]) => {
+    const len = (amt / total) * C;
+    const on = cat === selCat;
+    const s = `<circle class="slice" data-cat="${cat}" cx="50" cy="50" r="${R}" fill="none" stroke="${color(cat)}"
+      stroke-width="${on ? 21 : 16}" opacity="${selCat && !on ? 0.3 : 1}"
+      stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-start}" transform="rotate(-90 50 50)"/>`;
+    start += len;
+    return s;
+  }).join('');
+}
+
+// ---- 고정지출 ----
+// 등록한 달부터 이번 달까지(최대 12개월), 날짜가 지났는데 아직 처리하지 않은 것들
+function pendingFixed() {
+  const now = new Date();
+  const nm = now.getFullYear() * 12 + now.getMonth();
+  const t = today();
+  const found = [];
+  for (const f of settings.fixed) {
+    const since = parseDate(f.since + '-01');
+    const from = Math.max(since.getFullYear() * 12 + since.getMonth(), nm - 11);
+    for (let n = from; n <= nm; n++) {
+      const y = Math.floor(n / 12), m = n % 12;
+      const key = `${f.id}:${y}-${pad(m + 1)}`;
+      const date = `${y}-${pad(m + 1)}-${pad(clampDay(y, m, f.day))}`;
+      if (date <= t && !settings.applied[key]) found.push({ f, date, key });
+    }
+  }
+  return found;
+}
+// 날짜가 지난 고정지출은 물어보지 않고 자동으로 내역에 넣고, 넣었다는 알림만 남긴다
+let fixedNotice = null;
+function autoApplyFixed() {
+  const pending = pendingFixed();
+  if (!pending.length) return;
+  pending.forEach((p, n) => {
+    settings.applied[p.key] = true;
+    items.push({
+      id: Date.now() + n, type: 'out', amount: p.f.amount, category: p.f.category,
+      pay: p.f.pay, date: p.date, memo: p.f.name, fixedId: p.f.id,
+    });
+  });
+  save(); saveSettings();
+  const names = pending.slice(0, 3).map((p) => `${Number(p.date.slice(5, 7))}월 ${p.f.name} ${won(p.f.amount)}`).join(', ');
+  fixedNotice = `고정지출 ${pending.length}건이 내역에 추가됐어요 (${names}${pending.length > 3 ? ' 외' : ''})`;
+}
+// 이번 달 안에 아직 날짜가 오지 않은 고정지출 (통계에는 날짜가 지나야 들어간다)
+function upcomingFixed() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), t = today();
+  return settings.fixed
+    .map((f) => ({ f, date: `${y}-${pad(m + 1)}-${pad(clampDay(y, m, f.day))}` }))
+    .filter((u) => u.date > t && !settings.applied[`${u.f.id}:${y}-${pad(m + 1)}`]);
+}
+$('banner').addEventListener('click', (e) => {
+  if (e.target.id === 'fix-ok') { fixedNotice = null; render(); }
+});
+
+// ---- 카드 출금 예정 (카드 한 장) ----
+// 사용 기간은 '매달 N일부터 다음 달 N-1일까지'(N=1이면 1일~말일)이고,
+// 그 기간이 끝난 다음 달의 결제일에 출금된다. 예) N=19: 10/19~11/18 사용분 -> 12월 결제일
+const ymd = (d) => `${ym(d)}-${pad(d.getDate())}`;
+function cardPeriod(due) {
+  const s = settings.cardStart;
+  const endMonth = new Date(due.getFullYear(), due.getMonth() - 1, 1);   // 사용 기간이 끝나는 달
+  const y = endMonth.getFullYear(), m = endMonth.getMonth();
+  if (s === 1) return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0) };
+  return {
+    from: new Date(y, m - 1, clampDay(y, m - 1, s)),
+    to: new Date(y, m, clampDay(y, m, s - 1)),
+  };
+}
+function cardInfo() {
+  if (!settings.cardDay) return null;
+  const now = new Date();
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueOf = (y, m) => new Date(y, m, clampDay(y, m, settings.cardDay));
+  let due = dueOf(t.getFullYear(), t.getMonth());
+  if (due < t) due = dueOf(t.getFullYear(), t.getMonth() + 1);
+  const { from, to } = cardPeriod(due);
+  const [f, e] = [ymd(from), ymd(to)];
+  const amount = items
+    .filter((i) => i.type === 'out' && i.pay === 'card' && i.date >= f && i.date <= e)
+    .reduce((s, i) => s + i.amount, 0);
+  const days = Math.round((due - t) / 86400000);
+  return {
+    amount,
+    when: days === 0 ? '오늘' : `D-${days}`,
+    dateText: `${due.getMonth() + 1}월 ${due.getDate()}일`,
+    period: `${from.getMonth() + 1}/${from.getDate()}~${to.getMonth() + 1}/${to.getDate()}`,
+  };
+}
+
+// ---- 설정 탭 ----
+function dayOptions(first) {
+  return (first ? `<option value="">${first}</option>` : '') +
+    Array.from({ length: 31 }, (_, k) => `<option value="${k + 1}">${k + 1}일</option>`).join('');
+}
+$('card-day').innerHTML = dayOptions('설정 안 함');
+$('fday').innerHTML = dayOptions().replace(/(\d+)일</g, '$1<');
+$('card-start').innerHTML = dayOptions();
+$('card-day').onchange = (e) => {
+  settings.cardDay = Number(e.target.value) || null;
+  saveSettings(); render();
+};
+$('card-start').onchange = (e) => {
+  settings.cardStart = Number(e.target.value) || 1;
+  saveSettings(); render();
+};
+
+function renderSettings() {
+  $('card-day').value = settings.cardDay || '';
+  $('card-start').value = settings.cardStart;
+  const s = settings.cardStart;
+  $('card-hint').textContent = s === 1
+    ? '매달 1일~말일에 쓴 금액이 다음 달 결제일에 출금되는 카드예요.'
+    : `매달 ${s}일부터 다음 달 ${s - 1}일까지 쓴 금액이 그다음 달 결제일에 출금되는 카드예요. (예: 10/${s}~11/${s - 1} 사용분 → 12월 결제일)`;
+  const total = settings.fixed.reduce((s, f) => s + f.amount, 0);
+  $('fixed-title').textContent = settings.fixed.length ? `고정지출 (월 ${won(total)})` : '고정지출';
+  const list = $('fixed-list');
+  list.innerHTML = '';
+  for (const f of [...settings.fixed].sort((a, b) => a.day - b.day)) {
+    const li = document.createElement('li');
+    li.className = 'item';
+    li.innerHTML = '<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt out"></div>';
+    li.querySelector('.dot').style.background = color(f.category);
+    li.querySelector('.cat span').textContent = f.name;
+    li.querySelector('.memo').textContent = `매달 ${f.day}일 · ${f.category} · ${PAY[f.pay] || ''}`;
+    li.querySelector('.amt').textContent = won(f.amount);
+    li.onclick = () => openFixed(f);
+    list.appendChild(li);
+  }
+}
+
+function openFixed(f) {
+  fEditing = f || null;
+  $('fdlg-title').textContent = f ? '고정지출 수정' : '고정지출 추가';
+  $('fdel').hidden = !f;
+  fillCategories('fcategory', 'out', f && f.category);
+  $('fname').value = f ? f.name : '';
+  $('famount').value = f ? f.amount.toLocaleString('ko-KR') : '';
+  document.querySelector(`input[name=fpay][value=${f ? f.pay : settings.lastPay}]`).checked = true;
+  $('fday').value = f ? f.day : new Date().getDate();
+  $('fdlg').showModal();
+  if (!f) $('fname').focus();
+}
+$('fixed-add').onclick = () => openFixed();
+$('fcancel').onclick = () => $('fdlg').close();
+$('fform').addEventListener('submit', () => {
+  const amount = Number($('famount').value.replace(/\D/g, ''));
+  const name = $('fname').value.trim();
+  if (!amount || !name) return;
+  const data = {
+    name, amount, category: $('fcategory').value,
+    pay: document.querySelector('input[name=fpay]:checked').value,
+    day: Number($('fday').value),
+  };
+  if (fEditing) Object.assign(fEditing, data);
+  else settings.fixed.push({ id: 'f' + Date.now(), since: ym(new Date()), ...data });
+  saveSettings(); render();
+});
+$('fdel').onclick = () => {
+  if (fEditing && confirm('이 고정지출을 삭제할까요? (이미 추가된 내역은 그대로 남아요)')) {
+    settings.fixed = settings.fixed.filter((f) => f !== fEditing);
+    saveSettings(); render(); $('fdlg').close();
+  }
+};
+
+// ---- 공통 이벤트 ----
+function toggleCat(cat) {
+  selCat = selCat === cat ? null : cat;
+  render();
+}
+$('donut').addEventListener('click', (e) => {
+  const s = e.target.closest('.slice');
+  if (s) toggleCat(s.dataset.cat);
+  else if (selCat) { selCat = null; render(); }
+});
+$('stats').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-cat]');
+  if (li) toggleCat(li.dataset.cat);
+});
+$('year-bars').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-m]');
+  if (!b) return;
+  cur = new Date(cur.getFullYear(), Number(b.dataset.m), 1);
+  statsMode = 'month';
+  selCat = null;
+  render();
+});
+$('cal-grid').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-date]');
+  if (!b) return;
+  selDay = b.dataset.date;
+  render();
+});
+
+document.querySelectorAll('#list-mode button').forEach((b) => (b.onclick = () => { listMode = b.dataset.lmode; render(); }));
+document.querySelectorAll('#stats-mode button').forEach((b) => (b.onclick = () => { statsMode = b.dataset.mode; selCat = null; render(); }));
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; selCat = null; render(); }));
+
+function move(step) {
+  if (tab === 'stats' && statsMode === 'year') cur = new Date(cur.getFullYear() + step, cur.getMonth(), 1);
+  else cur = new Date(cur.getFullYear(), cur.getMonth() + step, 1);
+  selCat = null;
+  render();
+}
+$('prev').onclick = () => move(-1);
+$('next').onclick = () => move(1);
+
+function fillCategories(id, type, selected) {
+  $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
+  if (selected) $(id).value = selected;
+}
+
+function bindMoney(el) {
+  el.addEventListener('input', (e) => {
+    const n = e.target.value.replace(/\D/g, '');
+    e.target.value = n ? Number(n).toLocaleString('ko-KR') : '';
+  });
+}
+bindMoney($('amount'));
+bindMoney($('famount'));
+
+function openDialog(item) {
+  editing = item || null;
+  $('dlg-title').textContent = item ? '내역 수정' : '내역 추가';
+  $('del').hidden = !item;
+  const type = item ? item.type : 'out';
+  document.querySelector(`input[name=type][value=${type}]`).checked = true;
+  fillCategories('category', type, item && item.category);
+  // 새 내역은 마지막에 쓴 결제수단이 기본값, 결제수단이 없는 예전 내역은 선택 없음으로 둔다
+  const pay = item ? item.pay : settings.lastPay;
+  document.querySelectorAll('input[name=pay]').forEach((r) => (r.checked = r.value === pay));
+  $('pay-seg').hidden = type !== 'out';
+  $('amount').value = item ? item.amount.toLocaleString('ko-KR') : '';
+  $('date').value = item ? item.date : (listMode === 'cal' && selDay) || today();
+  $('memo').value = item ? item.memo : '';
+  $('dlg').showModal();
+  if (!item) $('amount').focus();
+}
+
+document.querySelectorAll('input[name=type]').forEach((r) =>
+  r.addEventListener('change', () => {
+    fillCategories('category', r.value);
+    $('pay-seg').hidden = r.value !== 'out';
+  }));
+
+$('form').addEventListener('submit', () => {
+  const amount = Number($('amount').value.replace(/\D/g, ''));
+  if (!amount) return;
+  const type = document.querySelector('input[name=type]:checked').value;
+  const payEl = document.querySelector('input[name=pay]:checked');
+  const data = {
+    type,
+    amount,
+    category: $('category').value,
+    pay: type === 'out' && payEl ? payEl.value : undefined,
+    date: $('date').value,
+    memo: $('memo').value.trim(),
+  };
+  if (data.pay) { settings.lastPay = data.pay; saveSettings(); }
+  if (editing) Object.assign(editing, data);
+  else items.push({ id: Date.now(), ...data });
+  save();
+  if (data.date.slice(0, 7) !== ym(cur)) {
+    const d = parseDate(data.date);
+    cur = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+  render();
+});
+$('cancel').onclick = () => $('dlg').close();
+$('del').onclick = () => {
+  if (editing && confirm('삭제할까요?')) {
+    items = items.filter((i) => i !== editing);
+    save(); render(); $('dlg').close();
+  }
+};
+$('fab').onclick = () => openDialog();
+
+// ---- 내보내기 / 백업 ----
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+$('export-csv').onclick = () => {
+  const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  const rows = [...items].sort((a, b) => a.date.localeCompare(b.date))
+    .map((i) => [i.date, i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', i.amount, i.memo].map(esc).join(','));
+  download('가계부.csv', '﻿날짜,구분,카테고리,결제수단,금액,메모\n' + rows.join('\n'), 'text/csv');
+};
+$('export-json').onclick = () =>
+  download('가계부-백업.json', JSON.stringify({ version: 2, items, settings }), 'application/json');
+$('import-json').onclick = () => $('import-file').click();
+$('import-file').onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const list = Array.isArray(data) ? data : data.items;   // 예전 백업은 배열만 들어 있음
+    if (!Array.isArray(list)) throw 0;
+    if (!confirm(`현재 데이터를 백업 ${list.length}건으로 교체할까요?`)) return;
+    items = list; save();
+    if (!Array.isArray(data)) { settings = normSettings(data.settings); saveSettings(); }
+    render();
+  } catch { alert('올바른 백업 파일이 아니에요.'); }
+  e.target.value = '';
+};
+
+// ---- 좌우 스와이프로 월(연별 보기에서는 연도) 이동 ----
+const EDGE = 24;      // 화면 가장자리는 브라우저의 '뒤로 가기' 제스처와 겹쳐서 제외
+const MIN_DX = 60;    // 이만큼 이상 가로로 움직여야 스와이프로 인정
+let swipe = null;
+document.addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  const ok = e.touches.length === 1 && tab !== 'settings' && !$('dlg').open && !$('fdlg').open &&
+    t.clientX > EDGE && t.clientX < window.innerWidth - EDGE;
+  swipe = ok ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!swipe) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+  swipe = null;
+  // 세로 스크롤과 구분: 가로 이동이 충분히 크고 세로보다 확실히 클 때만
+  if (Math.abs(dx) >= MIN_DX && Math.abs(dx) > Math.abs(dy) * 1.5) move(dx < 0 ? 1 : -1);
+}, { passive: true });
+document.addEventListener('touchcancel', () => { swipe = null; }, { passive: true });
+
+// 앱을 켜 둔 채 날짜가 바뀌었거나 백그라운드에서 돌아왔을 때도 고정지출을 반영
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+render();
