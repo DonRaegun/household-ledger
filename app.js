@@ -100,6 +100,7 @@ function nowTime() {
 
 function render() {
   autoApplyFixed();
+  $('fab').classList.remove('away');
   const yearView = tab === 'stats' && statsMode === 'year';
   const y = cur.getFullYear();
   $('month').textContent = tab === 'settings' ? '설정'
@@ -165,6 +166,7 @@ function renderExtras() {
     box.querySelector('small').textContent = `${info.period} 사용분`;
     box.querySelector('b').textContent = `예정 ${won(info.amount)}`;
   }
+  $('info-box').hidden = box.hidden && up.hidden;
 }
 
 function renderList(month) {
@@ -742,6 +744,15 @@ document.addEventListener('touchend', (e) => {
   if (Math.abs(dx) >= MIN_DX && Math.abs(dx) > Math.abs(dy) * 1.5) move(dx < 0 ? 1 : -1);
 }, { passive: true });
 document.addEventListener('touchcancel', () => { swipe = null; }, { passive: true });
+
+// 목록을 아래로 내리는 동안에는 + 버튼을 숨겨 금액을 가리지 않고, 위로 올리면 다시 보여준다
+let lastY = window.scrollY;
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (y > lastY + 6 && y > 80) $('fab').classList.add('away');
+  else if (y < lastY - 6 || y <= 80) $('fab').classList.remove('away');
+  lastY = y;
+}, { passive: true });
 
 // 앱을 켜 둔 채 날짜가 바뀌었거나 백그라운드에서 돌아왔을 때도 고정지출을 반영
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });

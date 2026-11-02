@@ -10,7 +10,7 @@
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.4 -apple-system, "Noto Sans KR", system-ui, sans-serif;
-  padding-bottom: calc(120px + env(safe-area-inset-bottom));
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
 }
 button, input, select { font: inherit; color: inherit; }
 button { border: 0; background: var(--card); padding: 10px 14px; border-radius: 10px; cursor: pointer; }
@@ -98,6 +98,25 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #card-info span, #upcoming span { color: var(--sub); }
 #card-info b, #upcoming b { white-space: nowrap; }
 #card-info em { font-style: normal; }
+
+/* 카드 출금 예정과 예정 고정지출을 한 카드에 두 줄로 */
+#info-box { background: var(--card); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+#info-box #card-info, #info-box #upcoming {
+  background: none; border-radius: 0; margin: 0; padding: 9px 14px; font-size: 13px;
+}
+#info-box #card-info:not([hidden]) + #upcoming:not([hidden]) { border-top: 1px solid var(--line); }
+#info-box #card-info small { margin-top: 1px; }
+
+/* + 버튼: 아래로 스크롤하는 동안은 숨김 */
+#fab { transition: transform .2s ease, opacity .2s ease; }
+#fab.away { transform: translateY(96px); opacity: 0; pointer-events: none; }
+
+/* 데이터 관리: 세로로 쌓은 넓은 버튼 (배경이 화면과 같아 안 보이던 문제 해결) */
+.row.stack { flex-direction: column; }
+.row.stack button {
+  flex: none; width: 100%; padding: 14px; text-align: left;
+  background: var(--card); border: 1px solid var(--line); font-weight: 600;
+}
 
 #pay-stats li, #mood-stats li { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 12px; padding: 10px 14px; margin-bottom: 6px; }
 #pay-stats li span:first-child, #mood-stats li span:first-child { flex: 1; }

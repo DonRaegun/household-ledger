@@ -24,8 +24,10 @@
     <div><span>합계</span><b id="sum-bal"></b></div>
   </section>
   <div id="banner" hidden></div>
-  <div id="upcoming" hidden></div>
-  <div id="card-info" hidden></div>
+  <div id="info-box" hidden>
+    <div id="card-info" hidden></div>
+    <div id="upcoming" hidden></div>
+  </div>
 
   <section id="view-list">
     <div class="toggle" id="list-mode">
@@ -101,7 +103,7 @@
     </div>
 
     <h2>데이터 관리</h2>
-    <div class="row">
+    <div class="row stack">
       <button id="export-csv">CSV 내보내기</button>
       <button id="export-json">백업(JSON)</button>
       <button id="import-json">백업 불러오기</button>
