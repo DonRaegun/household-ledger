@@ -44,7 +44,20 @@ $('next').onclick = () => move(1);
 function fillCategories(id, type, selected) {
   $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
   if (selected) $(id).value = selected;
+  if (id === 'category') renderCatChips();
 }
+// 내역 입력 창의 카테고리는 드롭다운 대신 버튼으로 모두 보여 줘서 한 번에 고른다 (값은 숨은 select가 들고 있다)
+function renderCatChips() {
+  const cur = $('category').value;
+  $('cat-chips').innerHTML = Array.from($('category').options).map((o) =>
+    `<button type="button" role="radio" aria-checked="${o.value === cur}" data-cat="${o.value}" class="${o.value === cur ? 'on' : ''}">${o.value}</button>`).join('');
+}
+$('cat-chips').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-cat]');
+  if (!b) return;
+  $('category').value = b.dataset.cat;
+  renderCatChips();
+});
 
 function bindMoney(el) {
   el.addEventListener('input', (e) => {
@@ -59,6 +72,7 @@ function openDialog(item) {
   editing = item || null;
   $('dlg-title').textContent = item ? '내역 수정' : '내역 추가';
   $('del').hidden = !item;
+  $('sms-open').hidden = !!item;
   const type = item ? item.type : 'out';
   document.querySelector(`input[name=type][value=${type}]`).checked = true;
   fillCategories('category', type, item && item.category);

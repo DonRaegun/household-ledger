@@ -40,7 +40,6 @@
         <button data-lmode="list" class="active">목록</button>
         <button data-lmode="cal">달력</button>
       </div>
-      <button id="sms-open">문자 입력</button>
     </div>
     <div id="list-wrap">
       <ul id="list"></ul>
@@ -175,13 +174,17 @@
 
 <dialog id="dlg" tabindex="-1">
   <form id="form" method="dialog">
-    <h2 id="dlg-title">내역 추가</h2>
+    <div class="dlg-head">
+      <h2 id="dlg-title">내역 추가</h2>
+      <button type="button" id="sms-open">문자로 입력</button>
+    </div>
     <div class="seg">
       <label><input type="radio" name="type" value="out" checked><span>지출</span></label>
       <label><input type="radio" name="type" value="in"><span>수입</span></label>
     </div>
     <input id="amount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
-    <select id="category"></select>
+    <select id="category" hidden></select>
+    <div id="cat-chips" class="chips" role="radiogroup" aria-label="카테고리"></div>
     <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <button type="button" id="more-btn" aria-expanded="false" aria-controls="more">
       <span id="more-sum"></span><b>더보기</b>

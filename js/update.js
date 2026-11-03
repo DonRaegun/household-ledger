@@ -20,7 +20,8 @@ async function checkUpdate({ manual = false } = {}) {
     try { localStorage.setItem(UKEY, String(Date.now())); } catch { /* 무시 */ }
     if (!r.available) { if (manual) showToast('update', [], { title: () => '최신 버전이에요', detail: ' ' }); return; }
     const notes = (r.notes || '').trim().split('\n')[0].slice(0, 80);
-    const ok = await ask(`새 버전이 있어요${notes ? `\n${notes}` : ''}\n지금 업데이트할까요? 내역은 그대로 남아요.`, { yes: '업데이트', no: '나중에' });
+    // 설치 도중 구글 Play 보호가 '앱 검사' 같은 확인 창을 띄울 수 있다. 그걸 닫거나 오래 두면 설치가 실패하므로 미리 알린다
+    const ok = await ask(`새 버전이 있어요${notes ? `\n${notes}` : ''}\n지금 업데이트할까요? 내역은 그대로 남아요.\n설치 중에 Play 보호가 검사를 물으면 "검사"나 "확인"을 눌러 주세요.`, { yes: '업데이트', no: '나중에' });
     if (!ok) return;
     updating = true;
     showToast('update', [], { title: () => '새 버전을 내려받는 중이에요', detail: '끝나면 설치 화면이 열려요' });

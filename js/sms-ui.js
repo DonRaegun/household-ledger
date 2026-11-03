@@ -63,7 +63,7 @@ function openSms(text, fromPending = false) {
   // 읽을 글이 이미 있으면(모아 둔 알림, 공유) 입력할 일이 없으니 키보드가 올라와 목록을 가리지 않게 한다
   if ($('sms-text').value.trim()) $('sms-text').blur();
 }
-$('sms-open').onclick = () => openSms('');
+$('sms-open').onclick = () => { $('dlg').close(); openSms(''); };   // 내역 추가 창 안의 '문자로 입력'
 $('sms-close').onclick = () => $('sdlg').close();
 $('sms-clear').onclick = () => openSms('');
 $('sms-text').addEventListener('input', () => { analyzeSms($('sms-text').value); renderSms(); });

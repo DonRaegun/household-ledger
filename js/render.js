@@ -90,7 +90,7 @@ function renderExtras() {
 
   const info = cardInfo();
   const box = $('card-info');
-  box.hidden = tab !== 'list' || !info;
+  box.hidden = tab !== 'list' || !info || !info.amount;   // 낼 금액이 없으면 홈을 차지하지 않는다
   if (!box.hidden) {
     box.innerHTML = '<span>카드 출금 <em></em><small></small></span><b></b>';
     box.querySelector('em').textContent = `${info.when} (${info.dateText})`;
