@@ -1,6 +1,6 @@
 const CACHE = 'ledger-v3';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg',
-  ...['core', 'store', 'holidays', 'sms', 'render', 'toast', 'fixed', 'settings', 'dialogs', 'ics', 'sms-ui', 'native', 'update', 'export', 'main']
+  ...['core', 'store', 'holidays', 'sms', 'render', 'toast', 'fixed', 'settings', 'dialogs', 'ics', 'sms-ui', 'native', 'update', 'export', 'modal', 'main']
     .map((n) => `js/${n}.js`)];
 
 self.addEventListener('install', (e) => {

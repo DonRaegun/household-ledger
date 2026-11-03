@@ -241,7 +241,9 @@ li.item.fresh { animation: fresh 3.6s ease-out; }
 .check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin-bottom: 12px; }
 .check input { margin-top: 3px; }
 .auto-row { margin: 12px 0 0; font-weight: 600; }
-dialog { max-height: 92vh; overflow: auto; }
+dialog { max-height: 92vh; overflow: auto; overscroll-behavior: contain; }
+/* 창이 열려 있는 동안 뒤의 화면이 같이 스크롤되지 않게 한다 (닫으면 원래 위치 그대로) */
+html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
 dialog:focus { outline: none; }   /* 창 자체에 포커스를 둘 때 테두리가 보이지 않게 */
 
 .panel { background: var(--card); border-radius: 12px; padding: 12px 14px; }
