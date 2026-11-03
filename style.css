@@ -238,6 +238,7 @@ dialog:focus { outline: none; }   /* 창 자체에 포커스를 둘 때 테두�
 .panel .field select { width: 60%; }
 #card-info small { display: block; font-size: 12px; margin-top: 2px; }
 .hint { font-size: 12px; color: var(--sub); margin: 8px 2px 0; }
+.np-last { white-space: pre-line; margin: 8px 2px 10px; }
 details.more { margin-top: 4px; }
 details.more summary { font-size: 12px; color: var(--primary); cursor: pointer; padding: 6px 2px; list-style: none; }
 details.more summary::-webkit-details-marker { display: none; }

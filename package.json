@@ -1,0 +1,8 @@
+{
+  "name": "household-ledger",
+  "private": true,
+  "description": "가계부 웹앱. 빌드 없이 index.html로 열고, 시험만 npm test로 돌린다.",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}

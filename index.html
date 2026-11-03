@@ -86,6 +86,7 @@
           <span>알림 접근 <b id="np-state"></b></span>
           <button type="button" id="np-open">알림 접근 켜기</button>
         </div>
+        <p class="hint np-last" id="np-last" hidden></p>
         <label class="check auto-row"><input id="auto-apply" type="checkbox"> 확인 없이 자동으로 가계부에 넣기</label>
         <p class="hint">읽힌 <b>새 결제·입출금</b>만 자동으로 넣고, 넣은 직후에는 "되돌리기"로 지울 수 있어요.</p>
         <details class="more">
@@ -148,6 +149,14 @@
     </div>
 
     <h2>데이터 관리</h2>
+    <div id="ab-section" class="panel" hidden>
+      <label class="check auto-row"><input id="auto-backup" type="checkbox"> 일주일마다 백업 파일 자동 저장</label>
+      <p class="hint" id="ab-last"></p>
+      <details class="more">
+        <summary>자세히 보기</summary>
+        <p class="hint">내역이 바뀌었을 때만, 앱을 열면 다운로드/가계부백업 폴더에 백업 파일(JSON)을 저장하고 최근 8개만 남겨요. 앱 데이터를 지워도 남아 있지만, 폰을 잃으면 같이 사라지니 가끔 아래 "백업(JSON)"으로 드라이브 등에 따로 보내 두세요. 파일에는 내 모든 내역이 그대로 들어 있어요.</p>
+      </details>
+    </div>
     <div class="row stack">
       <button id="export-csv">CSV 내보내기</button>
       <button id="export-json">백업(JSON)</button>
@@ -267,6 +276,21 @@
   </div>
 </dialog>
 
-<script src="app.js"></script>
+<!-- 기능별 파일. 모두 같은 전역 범위를 쓰므로 아래 순서대로 불러와야 한다 -->
+<script src="js/core.js"></script>
+<script src="js/store.js"></script>
+<script src="js/holidays.js"></script>
+<script src="js/sms.js"></script>
+<script src="js/render.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/fixed.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/dialogs.js"></script>
+<script src="js/ics.js"></script>
+<script src="js/sms-ui.js"></script>
+<script src="js/native.js"></script>
+<script src="js/update.js"></script>
+<script src="js/export.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

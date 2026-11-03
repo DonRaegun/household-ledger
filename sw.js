@@ -1,5 +1,7 @@
-const CACHE = 'ledger-v2';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
+const CACHE = 'ledger-v3';
+const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg',
+  ...['core', 'store', 'holidays', 'sms', 'render', 'toast', 'fixed', 'settings', 'dialogs', 'ics', 'sms-ui', 'native', 'update', 'export', 'main']
+    .map((n) => `js/${n}.js`)];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));
