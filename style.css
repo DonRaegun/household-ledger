@@ -1,9 +1,9 @@
 :root {
   --bg: #f5f6fa; --card: #fff; --text: #1c1e26; --sub: #6a6f80;
-  --line: #e6e8ef; --primary: #2f6fed; --in: #1f9d55; --out: #e5484d;
+  --line: #e6e8ef; --primary: #2f6fed; --in: #1f9d55; --out: #e5484d; --sat: #2f6fed;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #14151a; --card: #1e2027; --text: #eceef4; --sub: #8b90a0; --line: #2c2f3a; }
+  :root { --bg: #14151a; --card: #1e2027; --text: #eceef4; --sub: #8b90a0; --line: #2c2f3a; --sat: #6ea2ff; }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
@@ -74,7 +74,8 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 
 #cal-head, #cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 #cal-head span { text-align: center; font-size: 12px; color: var(--sub); padding: 4px 0; }
-#cal-head span:first-child, #cal-grid > :nth-child(7n+1) b { color: var(--out); }
+#cal-head span:last-child, .day-cell.sat b { color: var(--sat); }
+#cal-head span:first-child, .day-cell.off b { color: var(--out); }   /* 토요일이 공휴일이면 빨강이 이기도록 뒤에 둔다 */
 .day-cell {
   display: flex; flex-direction: column; align-items: center; gap: 1px;
   min-height: 58px; padding: 4px 1px; border-radius: 8px; background: var(--card);
