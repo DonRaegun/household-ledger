@@ -916,7 +916,7 @@ $('ics-fixed').onclick = () => {
 // 카드번호와 이름은 읽지도 저장하지도 않는다. 읽은 결과는 확인 창에서 고친 뒤에만 반영된다.
 // 문자 한 통이 시작되는 줄: 머리글('[이름] [시각]', '[Web발신]', '●') 또는 카드 이름+끝자리만 있는 줄('KB국민체크1234')
 const SMS_START = /^\s*(\[[^\]\n]+\]\s*\[[^\]\n]+\]|\[Web발신\]|●|[가-힣A-Za-z]*(?:체크|카드|신용)[가-힣A-Za-z]*\d{3,4}\s*$)/i;
-const SMS_WHEN = /(\d{1,2})[\/.](\d{1,2})\s+(\d{1,2}):(\d{2})/;       // '10/10 20:15'
+const SMS_WHEN = /(\d{1,2})[\/.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/;     // '10/10 20:15', '10-10 20:15'
 const CAT_GUESS = [
   [/카페|커피|스타벅스|투썸|이디야|메가|빽다방|할리스|매머드|컴포즈|더벤티|파스쿠찌|엔제리너스|폴바셋/, '카페'],
   [/편의점|GS25|CU|세븐일레븐|마트|식당|정육|치킨|피자|분식|김밥|국밥|횟집|고기|배달|맥도날|버거|도시락|반찬/, '식비'],
@@ -945,7 +945,44 @@ const LABEL_LINE = /^(\[?Web발신\]?|●.*|일시불|\d+\s*개월|고객명.*|.
 const textLines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 const isMerchantLine = (l) => !/\d[\d,]*\s*원/.test(l) && !SMS_WHEN.test(l) && !LABEL_LINE.test(l);
 
-// 문자 한 통 -> { cancel, amount, date, time, merchant, inst } (결제 문자가 아니면 null)
+// 입출금 문자: 입금/출금 단어가 있고 승인 문자가 아닌 것. 금액은 '50,000원'이거나 '입금 50,000'처럼 단어 뒤의 숫자
+const BANK_WORD = /입금|출금/;
+const BANK_ONLY = (s) => s.replace(/입출금|출금\s*(?:계좌|가능)|입금\s*계좌/g, '');   // '입출금통장'의 '출금'을 방향으로 읽지 않게
+const isBank = (block) => BANK_WORD.test(BANK_ONLY(block)) && !/승인/.test(block);
+// 잔액·한도처럼 이번 거래 금액이 아닌 숫자는 건너뛰고 첫 금액을 고른다
+function bankAmount(block) {
+  for (const m of block.matchAll(/(\d[\d,]*)\s*원/g)) {
+    const before = block.slice(Math.max(0, m.index - 10), m.index);
+    if (/(잔액|잔고|누적|한도|수수료)\s*:?\s*$/.test(before)) continue;
+    return { n: Number(m[1].replace(/,/g, '')), at: m.index };
+  }
+  const m = BANK_ONLY(block).match(/(?:입금|출금)\s*:?\s*(\d[\d,]*)(?![\d,])/);
+  return m ? { n: Number(m[1].replace(/,/g, '')), at: block.indexOf(m[0]) } : null;
+}
+// 입금인/받는 사람: 날짜·금액·계좌번호·은행 이름이 아닌 줄에서 입금/출금 같은 단어를 뺀 첫 글. 없으면 '입금'/'출금'
+const BANK_NAME = /(?:은행|뱅크|통장|계좌|증권)$|^(?:KB|NH|SC|IBK|신한|우리|하나|농협|국민|기업|카카오|토스)(?:은행)?$/i;
+function bankParty(block, dir) {
+  const clean = (s) => s.replace(/\[[^\]]*\]|\([^)]*\)|입출금|입금|출금|이체|님|[|·:]/g, '').trim();
+  const usable = (t) => t.length >= 2 && !BANK_NAME.test(t) && !/^(Web발신|안내|알림)$/.test(t);
+  for (const raw of textLines(block)) {
+    const line = raw.replace(/(?:잔액|잔고|한도).*$/, '').trim();   // 잔액부터는 버린다 (한 줄에 이어 붙은 형식도 있다)
+    if (!line) continue;
+    if (/\d[\d,]*\s*원/.test(line)) {   // 한 줄에 다 있으면 금액 뒤의 글('입금 1,500,000원 급여'), 없으면 앞의 글('[출금] 네이버페이충전 20,000원 11/03 09:46')
+      const after = clean(line.replace(/^.*?\d[\d,]*\s*원/, '').replace(SMS_WHEN, ''));
+      if (usable(after) && !/\d{3,}/.test(after)) return after;
+      const before = clean(line.replace(/\d[\d,]*\s*원.*$/, '').replace(SMS_WHEN, ''))
+        .replace(/^(?:KB국민|국민|신한|우리|하나|NH농협|농협|기업|IBK|SC제일|카카오뱅크|토스뱅크)(?:은행)?\s+/i, '');
+      if (usable(before) && !/\d{3,}/.test(before)) return before;
+      continue;
+    }
+    if (SMS_WHEN.test(line) || /\d{3,}/.test(line)) continue;
+    const t = clean(line);
+    if (usable(t)) return t;
+  }
+  return dir === 'in' ? '입금' : '출금';
+}
+
+// 문자 한 통 -> { type, cancel, amount, date, time, merchant, inst, bank, review } (결제·입출금 문자가 아니면 null)
 function parseSms(block) {
   // 알림으로 받은 글은 맨 앞에 '[알림 2026-11-02 06:12]'(도착 시각) 줄이 붙어 있다
   let posted = null;
@@ -954,10 +991,15 @@ function parseSms(block) {
     return '';
   });
   const w = block.match(SMS_WHEN);
-  const a = block.match(/(\d[\d,]*)\s*원/);
-  if (!a || (!w && !posted)) return null;
+  const bank = isBank(block);
+  const a = bank ? null : block.match(/(\d[\d,]*)\s*원/);
+  const ba = bank ? bankAmount(block) : null;
+  if ((!a && !ba) || (!w && !posted)) return null;
   const cancel = /취소/.test(block);
-  if (!cancel && !/승인|결제/.test(block)) return null;
+  if (bank) {
+    // 입금취소·정정처럼 방향이 헷갈리는 알림은 읽지 않는다 (잘못 넣는 것보다 낫다)
+    if (cancel || /정정|오류/.test(block)) return null;
+  } else if (!cancel && !/승인|결제/.test(block)) return null;
   let y, mo, da, hh, mi, rest;
   if (w) {
     [mo, da, hh, mi] = [Number(w[1]), Number(w[2]), Number(w[3]), Number(w[4])];
@@ -969,14 +1011,27 @@ function parseSms(block) {
   } else {
     // 글 안에 날짜·시각이 없으면 알림이 도착한 시각을 결제 시각으로 본다. 가맹점은 금액 뒤의 글로 짐작한다
     [y, mo, da, hh, mi] = posted;
-    rest = block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '');
+    rest = a ? block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '') : block;
+  }
+  if (bank) {
+    const t = BANK_ONLY(block);
+    const out = t.search(/출금/), inn = t.search(/입금/);
+    const type = inn >= 0 && (out < 0 || inn < out) ? 'in' : 'out';
+    return {
+      type, bank: true, cancel: false, amount: ba.n,
+      date: `${y}-${pad(mo)}-${pad(da)}`, time: `${pad(hh)}:${pad(mi)}`,
+      merchant: bankParty(block, type), inst: 0,
+      whenFromText: !!w,
+      // 카드대금 출금은 카드 사용 내역과 겹치니 자동으로 넣지 않고 확인을 받는다
+      review: type === 'out' && /카드|대금|결제/.test(block),
+    };
   }
   // 가맹점: 날짜·시각 뒤(우리카드 형식)에서 먼저 찾고, 없으면 글 전체에서 라벨 줄을 뺀 첫 줄(KB국민 형식: 금액 뒤·날짜 앞)을 쓴다
   const merchant = (textLines(rest).find(isMerchantLine) || textLines(block).find(isMerchantLine) || '')
     .replace(/（/g, '(').replace(/）/g, ')');
   const inst = block.match(/(\d+)\s*개월/);
   return {
-    cancel, amount: Number(a[1].replace(/,/g, '')),
+    type: 'out', cancel, amount: Number(a[1].replace(/,/g, '')),
     date: `${y}-${pad(mo)}-${pad(da)}`, time: `${pad(hh)}:${pad(mi)}`,
     merchant, inst: inst ? Number(inst[1]) : 0,
     whenFromText: !!w,   // 날짜·시각이 글 안에 있었는지 (알림이 도착한 시각으로 대신한 것이 아닌지)
@@ -984,16 +1039,22 @@ function parseSms(block) {
 }
 
 // 전에 입력한 같은 가맹점의 카테고리를 먼저 따르고, 없으면 이름으로 짐작한다
-function guessCategory(merchant) {
-  const past = [...items].sort(byNewest).find((i) => i.type === 'out' && stripInst(i.memo) === merchant && merchant);
+function guessCategory(merchant, type = 'out') {
+  const past = [...items].sort(byNewest).find((i) => i.type === type && stripInst(i.memo) === merchant && merchant);
   if (past) return past.category;
+  if (type === 'in') return /급여|월급|상여/.test(merchant) ? '급여' : '기타';
   const hit = CAT_GUESS.find(([re]) => re.test(merchant));
   return hit ? hit[1] : '기타';
 }
 const smsMemo = (r) => r.merchant + (r.inst ? ` ${r.inst}개월 할부` : '');
-const smsKey = (r) => `${r.date} ${r.time} ${r.amount} ${r.merchant}`;
+const smsKey = (r) => `${r.type === 'in' ? '+' : ''}${r.date} ${r.time} ${r.amount} ${r.merchant}`;
 const isDup = (r) => items.some((i) => i.smsKey === smsKey(r) ||
-  (i.type === 'out' && i.date === r.date && i.time === r.time && i.amount === r.amount));
+  (i.type === (r.type || 'out') && i.date === r.date && i.time === r.time && i.amount === r.amount));
+// 알림에서 만든 내역의 모양: 입출금은 계좌이체(수입이면 수입), 카드 결제는 카드 지출
+const smsItem = (r, id) => ({
+  id, type: r.type || 'out', amount: r.amount, category: r.category, pay: r.bank ? 'transfer' : 'card',
+  date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r),
+});
 
 let smsRows = [], smsSkipped = 0;
 // 읽은 결과를 상태별로 분류한다: new(새 결제) / dup(이미 있음) / offset(승인과 취소가 서로 상쇄)
@@ -1006,7 +1067,7 @@ function analyzeSms(text) {
   const used = new Set();
   for (const c of smsRows.filter((r) => r.cancel)) {
     // 이미 가계부에 들어간 결제가 다시 온 알림(isDup)은 짝으로 삼지 않는다. 그래야 취소가 가계부의 그 결제를 지운다
-    const mate = smsRows.find((r) => !r.cancel && !used.has(r) && r.amount === c.amount &&
+    const mate = smsRows.find((r) => !r.cancel && !r.bank && !used.has(r) && r.amount === c.amount &&
       r.merchant === c.merchant && when(r) <= when(c) && !isDup(r));
     if (mate) { used.add(mate); mate.status = c.status = 'offset'; mate.include = c.include = false; continue; }
     const target = [...items].sort(byNewest).find((i) => i.type === 'out' && i.amount === c.amount &&
@@ -1017,7 +1078,7 @@ function analyzeSms(text) {
   const seen = new Set();   // 같은 알림이 두 번 온 경우(갱신 등)를 한 건만 반영하려고
   for (const r of smsRows) {
     if (r.status !== 'new') continue;
-    r.category = guessCategory(r.merchant);
+    r.category = guessCategory(r.merchant, r.type);
     if (isDup(r)) { r.status = 'dup'; r.include = false; }
     else if (seen.has(smsKey(r))) { r.status = 'again'; r.include = false; }
     seen.add(smsKey(r));
@@ -1031,8 +1092,8 @@ function renderSms() {
   box.innerHTML = '';
   const text = $('sms-text').value.trim();
   $('sms-sum').textContent = smsRows.length
-    ? `결제 문자 ${smsRows.length}건을 읽었어요.${smsSkipped ? ` (읽지 못한 ${smsSkipped}건)` : ''}`
-    : text ? '결제 문자를 찾지 못했어요. 금액(○○원)과 날짜·시각(10/10 20:15)이 들어 있는 승인 문자를 붙여넣어 주세요.' : '';
+    ? `결제·입출금 문자 ${smsRows.length}건을 읽었어요.${smsSkipped ? ` (읽지 못한 ${smsSkipped}건)` : ''}`
+    : text ? '결제·입출금 문자를 찾지 못했어요. 금액(○○원)과 날짜·시각(10/10 20:15)이 들어 있는 승인·입금·출금 문자를 붙여넣어 주세요.' : '';
   smsRows.forEach((r) => {
     const el = document.createElement('div');
     el.className = 'sms-row' + (r.include ? '' : ' off');
@@ -1048,8 +1109,9 @@ function renderSms() {
     tag.className = `chip st-${r.status}`;
     tag.textContent = SMS_TAG[r.status];
     const amt = document.createElement('b');
-    amt.className = r.cancel ? 'in' : 'out';
-    amt.textContent = (r.cancel ? '+' : '-') + won(r.amount);
+    const plus = r.cancel || r.type === 'in';   // 취소와 입금은 돈이 들어오는 쪽
+    amt.className = plus ? 'in' : 'out';
+    amt.textContent = (plus ? '+' : '-') + won(r.amount);
     top.append(cb, when, tag, amt);
     el.appendChild(top);
     if (r.status === 'new' || r.status === 'dup' || r.status === 'again') {
@@ -1060,7 +1122,7 @@ function renderSms() {
       name.oninput = () => { r.merchant = name.value.trim(); };
       const sel = document.createElement('select');
       sel.setAttribute('aria-label', '카테고리');
-      sel.innerHTML = CATEGORIES.out.map((c) => `<option>${c}</option>`).join('');
+      sel.innerHTML = CATEGORIES[r.type === 'in' ? 'in' : 'out'].map((c) => `<option>${c}</option>`).join('');
       sel.value = r.category;
       sel.onchange = () => { r.category = sel.value; };
       edit.append(name, sel);
@@ -1108,10 +1170,7 @@ $('sms-add').onclick = () => {
     if (r.status === 'remove') { items = items.filter((i) => i !== r.target); removed++; return; }
     const id = Date.now() + n;
     addedIds.push(id);
-    items.push({
-      id, type: 'out', amount: r.amount, category: r.category, pay: 'card',
-      date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r),
-    });
+    items.push(smsItem(r, id));
     lastDate = r.date;
   });
   save();
@@ -1159,13 +1218,10 @@ const pendingText = (p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`;
 function autoApplyPending() {
   if (!NP || !settings.autoApply || !pending.length || $('sdlg').open) return;   // 확인 창을 보는 중에는 건드리지 않는다
   analyzeSms(pending.map(pendingText).join('\n'));
-  const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && r.whenFromText && r.merchant && r.amount > 0);
+  const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && !r.review && (r.whenFromText || r.bank) && r.merchant && r.amount > 0);
   const known = smsRows.filter((r) => r.status === 'dup');   // 이미 가계부에 있는 결제
   if (!sure.length && !known.length) return;
-  const added = sure.map((r, n) => ({
-    id: Date.now() + n, type: 'out', amount: r.amount, category: r.category, pay: 'card',
-    date: r.date, time: r.time, memo: smsMemo(r), smsKey: smsKey(r), auto: true,
-  }));
+  const added = sure.map((r, n) => ({ ...smsItem(r, Date.now() + n), auto: true }));
   items.push(...added);
   // 넣은 것, 이미 있던 것, 같은 알림이 반복된 것만 대기 목록에서 지운다 (나머지는 확인 대기)
   const done = new Set([...sure, ...known].map(smsKey));
