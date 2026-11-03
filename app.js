@@ -233,12 +233,13 @@ function itemEl(i) {
   li.className = 'item' + (freshIds.has(i.id) ? ' fresh' : '');   // 방금 들어온 내역은 잠깐 반짝인다
   li.innerHTML = `<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
   li.querySelector('.dot').style.background = color(i.category);
-  li.querySelector('.cat span').textContent = i.category;
+  // 제목은 가맹점·메모(없으면 카테고리). 알림으로 들어온 내역은 카테고리가 대부분 '기타'라서 메모가 더 알아보기 쉽다
+  li.querySelector('.cat span').textContent = i.memo || i.category;
   const memo = li.querySelector('.memo');
   const bits = [];
+  if (i.memo) bits.push(i.category);
   if (i.type === 'out' && i.time) bits.push(i.time);
   if (i.type === 'out' && PAY[i.pay]) bits.push(PAY[i.pay]);
-  if (i.memo) bits.push(i.memo);
   memo.textContent = bits.join(' · ');
   if (i.type === 'out' && MOODS[i.mood]) {
     const chip = document.createElement('span');
@@ -371,6 +372,23 @@ $('backup-tip').addEventListener('click', (e) => {
   }
 });
 
+// 날짜 머리글: 왼쪽에 날짜(공휴일 이름), 오른쪽에 그날 지출 합계
+function dayHead(date, month) {
+  const li = document.createElement('li');
+  li.className = 'day';
+  const label = document.createElement('span');
+  label.textContent = dayLabel(date);
+  li.appendChild(label);
+  const out = month.reduce((s, i) => (i.date === date && i.type === 'out' ? s + i.amount : s), 0);
+  if (out) {
+    const sum = document.createElement('span');
+    sum.className = 'day-sum';
+    sum.textContent = '-' + won(out);
+    li.appendChild(sum);
+  }
+  return li;
+}
+
 function renderList(month) {
   const list = $('list');
   list.innerHTML = '';
@@ -378,10 +396,7 @@ function renderList(month) {
   for (const i of month) {
     if (i.date !== lastDate) {
       lastDate = i.date;
-      const li = document.createElement('li');
-      li.className = 'day';
-      li.textContent = dayLabel(i.date);
-      list.appendChild(li);
+      list.appendChild(dayHead(i.date, month));
     }
     list.appendChild(itemEl(i));
   }
@@ -422,8 +437,7 @@ function renderCal(month) {
     list.appendChild(head);
     return;
   }
-  head.textContent = dayLabel(selDay);
-  list.appendChild(head);
+  list.appendChild(dayHead(selDay, month));
   const dayItems = month.filter((i) => i.date === selDay);
   if (!dayItems.length) {
     const li = document.createElement('li');
@@ -1294,7 +1308,7 @@ function autoApplyPending() {
   save(); savePending();
   if (added.length) {
     // 토스트가 떠 있는 동안 이어서 들어온 것은 합쳐서 보여 주고, 되돌리기도 한꺼번에 지운다
-    showToast('auto', added.map((i) => i.id), { title: (n) => `결제 ${n}건이 자동으로 추가됐어요`, undo: true, merge: true });
+    showToast('auto', added.map((i) => i.id), { title: (n) => `내역 ${n}건이 자동으로 추가됐어요`, undo: true, merge: true });
     const d = parseDate(added[added.length - 1].date);
     cur = new Date(d.getFullYear(), d.getMonth(), 1);
   }

@@ -39,14 +39,18 @@ main { padding: 12px 16px; max-width: 560px; margin: 0 auto; }
 .in { color: var(--in); } .out { color: var(--out); }
 
 ul { list-style: none; margin: 0; padding: 0; }
-#list li.day { padding: 12px 4px 4px; font-size: 13px; color: var(--sub); }
+#list li.day { padding: 14px 4px 6px; font-size: 13px; color: var(--sub); }
+li.day { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+li.day .day-sum { font-size: 12px; font-variant-numeric: tabular-nums; }
 #list li.item {
   display: flex; justify-content: space-between; align-items: center;
   background: var(--card); padding: 12px 14px; border-radius: 12px; margin-bottom: 6px;
 }
+.item > div:first-child { min-width: 0; flex: 1; }
 .item .cat { font-weight: 600; }
-.item .memo { font-size: 13px; color: var(--sub); }
-.item .amt { font-weight: 600; }
+.item .cat span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .memo { font-size: 13px; color: var(--sub); margin-top: 1px; }
+.item .amt { font-weight: 700; margin-left: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #empty { text-align: center; color: var(--sub); margin-top: 40px; }
 
 h2 { font-size: 15px; margin: 16px 0 8px; }
@@ -234,6 +238,11 @@ dialog:focus { outline: none; }   /* 창 자체에 포커스를 둘 때 테두�
 .panel .field select { width: 60%; }
 #card-info small { display: block; font-size: 12px; margin-top: 2px; }
 .hint { font-size: 12px; color: var(--sub); margin: 8px 2px 0; }
+details.more { margin-top: 4px; }
+details.more summary { font-size: 12px; color: var(--primary); cursor: pointer; padding: 6px 2px; list-style: none; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::after { content: ' ›'; }
+details.more[open] summary::after { content: ' ‹'; }
 .wide { width: 100%; margin-top: 4px; background: var(--card); color: var(--primary); font-weight: 600; }
 #sub-list li.item, #fixed-list li.item {
   display: flex; justify-content: space-between; align-items: center; cursor: pointer;
