@@ -36,6 +36,7 @@ function render() {
   const y = cur.getFullYear();
   $('month').textContent = tab === 'settings' ? '설정'
     : yearView ? `${y}년` : `${y}년 ${cur.getMonth() + 1}월`;
+  $('month').disabled = tab === 'settings';
   $('prev').style.visibility = $('next').style.visibility = tab === 'settings' ? 'hidden' : 'visible';
 
   const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);

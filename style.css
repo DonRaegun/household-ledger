@@ -21,6 +21,18 @@ header {
   background: var(--primary); color: #fff; position: sticky; top: 0; z-index: 5;
 }
 header h1 { margin: 0; font-size: 18px; }
+/* 제목을 누르면 연·월 선택 창이 열린다 */
+header h1 button { font-size: 18px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
+header h1 button::after { content: ' ▾'; font-size: 12px; opacity: .8; }
+header h1 button:disabled::after { content: ''; }
+header h1 button:disabled { color: inherit; cursor: default; }
+.mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.mp-head button { font-size: 22px; padding: 2px 14px; background: transparent; }
+#mp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+#mp-grid button { position: relative; padding: 12px 0; }
+#mp-grid button.on { background: var(--primary); color: #fff; font-weight: 600; }
+#mp-grid button.has::after { content: ''; position: absolute; left: 50%; bottom: 4px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--primary); }
+#mp-grid button.on.has::after { background: #fff; }
 header button { background: transparent; color: #fff; font-size: 26px; padding: 0 12px; }
 
 main { padding: 12px 16px; max-width: 560px; margin: 0 auto; }

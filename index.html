@@ -13,7 +13,7 @@
 <body>
 <header>
   <button id="prev" aria-label="이전">‹</button>
-  <h1 id="month"></h1>
+  <h1><button id="month" aria-haspopup="dialog"></button></h1>
   <button id="next" aria-label="다음">›</button>
 </header>
 
@@ -215,6 +215,17 @@
       <button type="submit" class="primary">저장</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="mdlg" tabindex="-1">
+  <div class="mp-head">
+    <button type="button" id="mp-prev" aria-label="이전 해">‹</button>
+    <b id="mp-title"></b>
+    <button type="button" id="mp-next" aria-label="다음 해">›</button>
+  </div>
+  <div id="mp-grid"></div>
+  <p class="hint">점이 있는 달은 내역이 있어요.</p>
+  <div class="row"><button type="button" id="mp-today">이번 달</button><button type="button" id="mp-close">닫기</button></div>
 </dialog>
 
 <dialog id="fdlg" tabindex="-1">

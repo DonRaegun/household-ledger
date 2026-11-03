@@ -41,6 +41,47 @@ function move(step) {
 $('prev').onclick = () => move(-1);
 $('next').onclick = () => move(1);
 
+// 맨 위 제목을 누르면 연도와 달을 골라 바로 이동한다. 연별 통계에서는 연도만 고른다. 내역이 있는 달(해)에는 점이 붙는다
+let pickYear = 0;
+function renderPicker() {
+  const yearMode = tab === 'stats' && statsMode === 'year';
+  const has = new Set(items.map((i) => i.date.slice(0, yearMode ? 4 : 7)));
+  const thisYear = new Date().getFullYear();
+  $('mp-prev').hidden = $('mp-next').hidden = yearMode;
+  $('mp-title').textContent = yearMode ? '연도 선택' : `${pickYear}년`;
+  const cells = [];
+  if (yearMode) {
+    const last = Math.max(thisYear + 1, cur.getFullYear());
+    for (let y = last - 11; y <= last; y++) cells.push({ label: `${y}`, key: `${y}`, go: new Date(y, cur.getMonth(), 1), on: y === cur.getFullYear() });
+  } else {
+    for (let m = 0; m < 12; m++) {
+      const key = `${pickYear}-${String(m + 1).padStart(2, '0')}`;
+      cells.push({ label: `${m + 1}월`, key, go: new Date(pickYear, m, 1), on: key === ym(cur) });
+    }
+  }
+  $('mp-grid').innerHTML = cells.map((c, k) =>
+    `<button type="button" data-k="${k}" class="${c.on ? 'on' : ''}${has.has(c.key) ? ' has' : ''}">${c.label}</button>`).join('');
+  $('mp-grid').cells = cells;
+}
+$('month').onclick = () => {
+  if (tab === 'settings') return;
+  pickYear = cur.getFullYear();
+  renderPicker();
+  $('mdlg').showModal();
+};
+$('mp-prev').onclick = () => { pickYear--; renderPicker(); };
+$('mp-next').onclick = () => { pickYear++; renderPicker(); };
+$('mp-grid').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-k]');
+  if (!b) return;
+  cur = $('mp-grid').cells[Number(b.dataset.k)].go;
+  selCat = null; selDay = null;
+  $('mdlg').close();
+  render();
+});
+$('mp-today').onclick = () => { cur = new Date(); cur.setDate(1); selCat = null; selDay = null; $('mdlg').close(); render(); };
+$('mp-close').onclick = () => $('mdlg').close();
+
 function fillCategories(id, type, selected) {
   $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
   if (selected) $(id).value = selected;
