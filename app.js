@@ -599,8 +599,13 @@ function autoApplyFixed() {
   const pending = pendingFixed();
   if (!pending.length) return;
   const ids = [];
+  const claimed = new Set();
   pending.forEach((p, n) => {
     settings.applied[p.key] = true;
+    // 결제 알림으로 이미 들어온 같은 결제(같은 날 같은 금액, 이름이 닮으면 하루 차이까지)가 있으면 새로 넣지 않는다
+    const same = items.find((i) => !i.fixedId && i.smsKey && i.type === 'out' && i.amount === p.f.amount && !claimed.has(i) &&
+      (i.date === p.date || (dayGap(i.date, p.date) <= 1 && sameName(i.memo, p.f.name))));
+    if (same) { same.fixedId = p.f.id; claimed.add(same); return; }
     const id = Date.now() + n;
     ids.push(id);
     items.push({
@@ -609,7 +614,7 @@ function autoApplyFixed() {
     });
   });
   save(); saveSettings();
-  showToast('fixed', ids, { title: (n) => `고정지출 ${n}건이 추가됐어요` });
+  if (ids.length) showToast('fixed', ids, { title: (n) => `고정지출 ${n}건이 추가됐어요` });
 }
 // 이번 달 안에 아직 날짜가 오지 않은 고정지출 (통계에는 날짜가 지나야 들어간다)
 function upcomingFixed() {
@@ -1127,8 +1132,22 @@ function guessCategory(merchant, type = 'out') {
 }
 const smsMemo = (r) => r.merchant + (r.inst ? ` ${r.inst}개월 할부` : '');
 const smsKey = (r) => `${r.type === 'in' ? '+' : ''}${r.date} ${r.time} ${r.amount} ${r.merchant}`;
-const isDup = (r) => items.some((i) => i.smsKey === smsKey(r) ||
-  (i.type === (r.type || 'out') && i.date === r.date && i.time === r.time && i.amount === r.amount));
+// 같은 결제로 볼 시각 차이(분). 문자와 카드 앱 알림이 같은 결제를 1~2분 다르게 적는 경우가 있다.
+// 대신 같은 금액을 2분 안에 두 번 결제하면 한 건으로 합쳐진다.
+const SAME_MINUTES = 2;
+const minuteOf = (date, time) => Math.round(parseDate(date).getTime() / 60000) + Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+const nearMoment = (a, b) => !!(a.time && b.time) && Math.abs(minuteOf(a.date, a.time) - minuteOf(b.date, b.time)) <= SAME_MINUTES;
+const normName = (s) => String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]/g, '');
+const sameName = (a, b) => { a = normName(a); b = normName(b); return a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a)); };
+const dayGap = (a, b) => Math.abs(Math.round((parseDate(a) - parseDate(b)) / 86400000));
+// 고정지출이 넣은 내역(시각과 알림 표시가 없다)이 이 알림과 같은 결제인지. 같은 날 같은 금액이면 같은 결제로 보고,
+// 하루 차이는 이름이 닮았을 때만 인정한다 (구독료와 우연히 같은 금액의 다른 결제를 합치지 않으려고)
+const fixedLike = (i, r) => !!i.fixedId && !i.smsKey && i.type === (r.type || 'out') && i.amount === r.amount &&
+  (i.date === r.date || (dayGap(i.date, r.date) <= 1 && sameName(i.memo, r.merchant)));
+// 이미 가계부에 있는 같은 결제 (없으면 null)
+const dupOf = (r) => items.find((i) => i.smsKey === smsKey(r) ||
+  (i.type === (r.type || 'out') && i.amount === r.amount && nearMoment(i, r))) || items.find((i) => fixedLike(i, r)) || null;
+const isDup = (r) => !!dupOf(r);
 // 알림에서 만든 내역의 모양: 입출금은 계좌이체(수입이면 수입), 카드 결제는 카드 지출
 const smsItem = (r, id) => ({
   id, type: r.type || 'out', amount: r.amount, category: r.category, pay: r.bank ? 'transfer' : 'card',
@@ -1154,13 +1173,16 @@ function analyzeSms(text) {
     if (target) { c.status = 'remove'; c.target = target; }
     else { c.status = 'missing'; c.include = false; }
   }
-  const seen = new Set();   // 같은 알림이 두 번 온 경우(갱신 등)를 한 건만 반영하려고
+  const seen = [];   // 같은 알림이 두 번 온 경우(갱신, 문자+카드 앱 알림)를 한 건만 반영하려고
   for (const r of smsRows) {
     if (r.status !== 'new') continue;
     r.category = guessCategory(r.merchant, r.type);
-    if (isDup(r)) { r.status = 'dup'; r.include = false; }
-    else if (seen.has(smsKey(r))) { r.status = 'again'; r.include = false; }
-    seen.add(smsKey(r));
+    const dup = dupOf(r);
+    if (dup) { r.status = 'dup'; r.include = false; r.dupOf = dup; }
+    else if (seen.some((s) => s.type === r.type && s.amount === r.amount && (smsKey(s) === smsKey(r) || nearMoment(s, r)))) {
+      r.status = 'again'; r.include = false;
+    }
+    seen.push(r);
   }
   smsRows.sort((a, b) => when(a).localeCompare(when(b)));
 }
@@ -1298,8 +1320,13 @@ function autoApplyPending() {
   if (!NP || !settings.autoApply || !pending.length || $('sdlg').open) return;   // 확인 창을 보는 중에는 건드리지 않는다
   analyzeSms(pending.map(pendingText).join('\n'));
   const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && !r.review && (r.whenFromText || r.bank) && r.merchant && r.amount > 0);
-  const known = smsRows.filter((r) => r.status === 'dup');   // 이미 가계부에 있는 결제
+  const known = smsRows.filter((r) => r.status === 'dup' || r.status === 'again');   // 이미 가계부에 있거나 같은 결제가 한 번 더 온 알림
   if (!sure.length && !known.length) return;
+  // 고정지출이 먼저 넣은 내역과 합쳐지는 경우: 실제 결제 날짜·시각으로 맞추고 알림 표시를 달아, 이후 같은 결제 알림도 걸러지게 한다
+  for (const r of known) {
+    const d = r.dupOf;
+    if (d && d.fixedId && !d.smsKey) { d.date = r.date; d.time = d.time || r.time; d.smsKey = smsKey(r); }
+  }
   const added = sure.map((r, n) => ({ ...smsItem(r, Date.now() + n), auto: true }));
   items.push(...added);
   // 넣은 것, 이미 있던 것, 같은 알림이 반복된 것만 대기 목록에서 지운다 (나머지는 확인 대기)
