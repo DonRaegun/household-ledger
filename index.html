@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2f6fed">
+<meta name="theme-color" content="#f4f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0c13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.svg">
@@ -24,18 +25,20 @@
       <div><span>수입</span><b id="sum-in" class="in"></b></div>
       <div><span>합계</span><b id="sum-bal"></b></div>
     </div>
+    <div class="s-extra">
+      <div id="card-info" hidden></div>
+      <div id="upcoming" hidden></div>
+    </div>
   </section>
   <div id="banner" hidden></div>
   <div id="info-box" hidden>
     <div id="np-tip" hidden></div>
     <div id="pending-tip" hidden></div>
-    <div id="card-info" hidden></div>
-    <div id="upcoming" hidden></div>
-    <div id="backup-tip" hidden></div>
   </div>
 
   <section id="view-list">
     <div class="listbar">
+      <span id="list-count"></span>
       <div class="toggle" id="list-mode">
         <button data-lmode="list" class="active">목록</button>
         <button data-lmode="cal">달력</button>
@@ -56,6 +59,11 @@
     <div class="toggle" id="stats-mode">
       <button data-mode="month" class="active">월별</button>
       <button data-mode="year">연별</button>
+    </div>
+    <div id="cmp" hidden>
+      <span id="cmp-label"></span>
+      <b id="cmp-diff"></b>
+      <small id="cmp-detail"></small>
     </div>
     <div id="year-wrap" hidden>
       <h2>월별 지출</h2>
@@ -97,37 +105,22 @@
       </div>
     </div>
 
-    <div id="au-section" hidden>
-      <h2>앱 업데이트</h2>
-      <div class="panel">
-        <div class="np-status">
-          <span>새 버전이 있는지 확인해요</span>
-          <button type="button" id="update-check">업데이트 확인</button>
-        </div>
-        <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요.</p>
-        <details class="more">
-          <summary>자세히 보기</summary>
-          <p class="hint">이 앱의 공개 릴리스 페이지만 확인해요. 새 버전은 내려받은 뒤 설치 화면에서 "설치"를 눌러야 바뀌어요.</p>
-        </details>
-      </div>
-    </div>
-
-    <h2>카드 결제일</h2>
+    <h2>카드와 고정지출</h2>
     <div class="panel">
       <label class="field">결제일 <select id="card-day"></select></label>
       <label class="field">사용 기간 시작일 <select id="card-start"></select></label>
       <p class="hint" id="card-hint"></p>
     </div>
 
-    <h2 id="sub-title" hidden>구독</h2>
+    <h3 id="sub-title" class="sub" hidden>구독</h3>
     <ul id="sub-list"></ul>
-    <h2 id="fixed-title">고정지출</h2>
+    <h3 id="fixed-title" class="sub">고정지출</h3>
     <ul id="fixed-list"></ul>
     <button id="fixed-add" class="wide">+ 고정지출 추가</button>
     <p class="hint">정해진 날짜가 되면 앱을 열 때 자동으로 내역에 추가돼요. 날짜 전에는 내역 탭에 "예정"으로 표시되고, 통계에는 날짜가 된 뒤부터 들어가요.</p>
 
-    <h2>알림 (캘린더)</h2>
-    <div class="panel">
+    <details class="panel fold">
+      <summary>캘린더에 알림 추가</summary>
       <label class="field">알림 시점
         <select id="remind-days">
           <option value="0">당일 오전 9시</option>
@@ -140,14 +133,11 @@
         <button id="ics-card">카드 출금일 알림</button>
         <button id="ics-fixed">고정지출 알림</button>
       </div>
-      <p class="hint">일정 파일을 캘린더 앱에 추가하면, 앱을 안 열어도 캘린더가 알려줘요.</p>
-      <details class="more">
-        <summary>자세히 보기</summary>
-        <p class="hint">누르면 일정 파일이 내려받아져요. 파일을 열어 캘린더 앱(삼성 캘린더, 구글 캘린더)에 추가하세요. 앞으로 12개월치가 등록되고, 같은 항목을 다시 추가하면 대부분의 캘린더에서 중복 없이 갱신돼요. 결제일이나 금액을 바꿨다면 다시 추가하세요.</p>
-      </details>
-    </div>
+      <p class="hint">일정 파일을 캘린더 앱에 추가하면, 앱을 안 열어도 캘린더가 알려줘요. 누르면 일정 파일이 내려받아져요. 파일을 열어 캘린더 앱(삼성 캘린더, 구글 캘린더)에 추가하세요. 앞으로 12개월치가 등록되고, 같은 항목을 다시 추가하면 대부분의 캘린더에서 중복 없이 갱신돼요. 결제일이나 금액을 바꿨다면 다시 추가하세요.</p>
+    </details>
 
     <h2>데이터 관리</h2>
+    <div id="backup-tip" hidden></div>
     <div id="ab-section" class="panel" hidden>
       <label class="check auto-row"><input id="auto-backup" type="checkbox"> 일주일마다 백업 파일 자동 저장</label>
       <p class="hint" id="ab-last"></p>
@@ -161,6 +151,21 @@
       <button id="export-json">백업(JSON)</button>
       <button id="import-json">백업 불러오기</button>
       <input type="file" id="import-file" accept="application/json" hidden>
+    </div>
+
+    <div id="au-section" hidden>
+      <h2>앱 업데이트</h2>
+      <div class="panel">
+        <div class="np-status">
+          <span>새 버전이 있는지 확인해요</span>
+          <button type="button" id="update-check">업데이트 확인</button>
+        </div>
+        <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요.</p>
+        <details class="more">
+          <summary>자세히 보기</summary>
+          <p class="hint">이 앱의 공개 릴리스 페이지만 확인해요. 새 버전은 내려받은 뒤 설치 화면에서 "설치"를 눌러야 바뀌어요.</p>
+        </details>
+      </div>
     </div>
   </section>
 </main>

@@ -47,7 +47,7 @@ function render() {
   $('sum-in').textContent = won(inc);
   $('sum-out').textContent = won(out);
   $('sum-bal').textContent = won(inc - out);
-  $('summary').hidden = tab === 'settings';
+  $('summary').hidden = tab !== 'list';   // 통계에서는 도넛 가운데에 총 지출이 있으니 같은 카드를 또 보여 주지 않는다
 
   $('view-list').hidden = tab !== 'list';
   $('view-stats').hidden = tab !== 'stats';
@@ -99,9 +99,12 @@ function renderExtras() {
     box.querySelector('b').textContent = `예정 ${won(info.amount)}`;
   }
 
-  // 백업 안내: 한 번도 백업하지 않았는데 내역이 쌓였거나, 마지막 백업이 오래됐을 때만
+  // 백업 안내: 한 번도 백업하지 않았는데 내역이 쌓였거나, 마지막 백업이 오래됐을 때만.
+  // 홈을 차지하지 않도록 설정 탭의 '데이터 관리' 위에서 보여 주고, 홈에서는 설정 탭의 점으로만 알린다
   const tip = $('backup-tip');
-  const why = tab === 'list' ? backupDue() : null;
+  const due = backupDue();
+  const why = tab === 'settings' ? due : null;
+  document.querySelector('nav [data-tab=settings]').classList.toggle('badge', !!due);
   tip.hidden = !why;
   if (why) {
     tip.innerHTML = '<span></span><div><button id="tip-snooze">나중에</button><button id="tip-backup" class="primary">백업</button></div>';
@@ -121,7 +124,10 @@ function renderExtras() {
   if (!nt.hidden) {
     nt.innerHTML = '<span>결제 알림 자동 읽기가 꺼져 있어요.</span><div><button id="np-tip-later">나중에</button><button id="np-tip-on" class="primary">켜기</button></div>';
   }
-  $('info-box').hidden = box.hidden && up.hidden && tip.hidden && pt.hidden && nt.hidden;
+  $('info-box').hidden = pt.hidden && nt.hidden;
+  $('summary').querySelector('.s-extra').hidden = box.hidden && up.hidden;
+  const n = tab === 'list' ? items.filter((i) => i.date.startsWith(ym(cur))).length : 0;
+  $('list-count').textContent = n ? `${n}건` : '';
 }
 function backupDue() {
   if (!items.length || (settings.backupSnooze && settings.backupSnooze > today())) return null;
@@ -213,9 +219,27 @@ function renderCal(month) {
   dayItems.forEach((i) => list.appendChild(itemEl(i)));
 }
 
+// 통계 위쪽의 비교 카드: 지난달(연별은 작년)보다 얼마나 더·덜 썼는지
+function renderCompare(out, yearView) {
+  const box = $('cmp');
+  const { prev, running } = previousSpending(items, cur, yearView);
+  const name = (yearView ? '작년' : '지난달') + (running ? ' 같은 기간' : '');
+  const word = yearView ? '올해' : '이번 달';
+  box.hidden = !prev || !out;   // 비교할 지난 기간의 지출이 없으면 보여 주지 않는다
+  if (box.hidden) return;
+  const diff = out - prev;
+  const pct = Math.round((Math.abs(diff) / prev) * 100);
+  $('cmp-label').textContent = `${name}보다`;
+  const el = $('cmp-diff');
+  el.className = diff > 0 ? 'up' : diff < 0 ? 'down' : 'same';
+  el.textContent = diff === 0 ? '똑같이 썼어요' : `${diff > 0 ? '▲' : '▼'} ${won(Math.abs(diff))} ${diff > 0 ? '더' : '덜'} 썼어요 (${pct}%)`;
+  $('cmp-detail').textContent = `${word} ${won(out)} · ${name} ${won(prev)}`;
+}
+
 function renderStats(period, out, yearView) {
   $('year-wrap').hidden = !yearView;
   if (yearView) renderYearBars(period);
+  renderCompare(out, yearView);
 
   const outs = period.filter((i) => i.type === 'out');
   const byCat = {};

@@ -39,6 +39,18 @@ function parseDate(s) {
   return new Date(y, m - 1, d);
 }
 
+// 지난달(연별 보기는 작년) 지출 합계. 아직 진행 중인 달·해는 지난 기간도 같은 날짜까지만 더해서 공정하게 비교한다.
+// view: 보고 있는 달의 Date, t: 오늘('YYYY-MM-DD')
+function previousSpending(list, view, yearView, t = today()) {
+  const running = yearView ? view.getFullYear() === Number(t.slice(0, 4)) : ym(view) === t.slice(0, 7);
+  const prefix = yearView ? String(view.getFullYear() - 1) : ym(new Date(view.getFullYear(), view.getMonth() - 1, 1));
+  const prev = list
+    .filter((i) => i.type === 'out' && i.date.startsWith(prefix) &&
+      (!running || (yearView ? i.date.slice(5) <= t.slice(5) : Number(i.date.slice(8)) <= Number(t.slice(8)))))
+    .reduce((s, i) => s + i.amount, 0);
+  return { prev, running };
+}
+
 // 해당 월에 없는 날(31일 등)은 말일로 맞춘다
 const clampDay = (y, m, day) => Math.min(day, new Date(y, m + 1, 0).getDate());
 

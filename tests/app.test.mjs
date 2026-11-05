@@ -217,3 +217,34 @@ test('공휴일: 2026년에는 대체공휴일 포함 정확히 이 날들이다
     '2026-10-09', '2026-12-25',
   ].join(' '));
 });
+
+test('통계 비교: 지난 달 전체와 비교 (이미 끝난 달)', () => {
+  const list = [
+    { type: 'out', amount: 100, date: '2020-02-03' }, { type: 'out', amount: 50, date: '2020-02-28' },
+    { type: 'in', amount: 999, date: '2020-02-10' },      // 수입은 더하지 않는다
+    { type: 'out', amount: 7, date: '2020-01-30' },        // 다른 달
+  ];
+  const r = app.ctx.previousSpending(list, new Date(2020, 2, 1), false);
+  assert.deepEqual([r.prev, r.running], [150, false]);
+});
+
+test('통계 비교: 진행 중인 달은 지난달의 같은 날짜까지만 더한다', () => {
+  // 시계가 2026-11-03으로 고정되어 있다: 10월은 3일까지만
+  const list = [
+    { type: 'out', amount: 100, date: '2026-10-02' }, { type: 'out', amount: 40, date: '2026-10-03' },
+    { type: 'out', amount: 500, date: '2026-10-20' },
+  ];
+  const r = app.ctx.previousSpending(list, new Date(2026, 10, 1), false);
+  assert.deepEqual([r.prev, r.running], [140, true]);
+});
+
+test('통계 비교: 연별은 작년과 비교하고, 진행 중인 해는 같은 날짜까지만', () => {
+  const list = [
+    { type: 'out', amount: 10, date: '2025-01-05' }, { type: 'out', amount: 20, date: '2025-11-03' },
+    { type: 'out', amount: 300, date: '2025-11-04' }, { type: 'out', amount: 400, date: '2024-03-01' },
+  ];
+  const now = app.ctx.previousSpending(list, new Date(2026, 5, 1), true);
+  assert.deepEqual([now.prev, now.running], [30, true]);
+  const past = app.ctx.previousSpending(list, new Date(2025, 5, 1), true);
+  assert.deepEqual([past.prev, past.running], [400, false]);
+});

@@ -36,27 +36,27 @@ $('toast').addEventListener('click', (e) => {
   if (toastSwiped) { toastSwiped = false; return; }
   if (e.target.id !== 'toast-undo') hideToast();
 });
-// 위나 옆으로 밀어서 치우기 (아래로는 움직이지 않는다)
+// 옆(좌우)으로 밀어서 치우기. 위아래로는 움직이지 않는다
 (() => {
   const el = $('toast');
-  let sx = 0, sy = 0, dx = 0, dy = 0, down = false;
+  let sx = 0, dx = 0, down = false;
   el.addEventListener('pointerdown', (e) => {
     if (e.target.id === 'toast-undo') return;
-    down = true; toastSwiped = false; sx = e.clientX; sy = e.clientY; dx = dy = 0;
+    down = true; toastSwiped = false; sx = e.clientX; dx = 0;
     el.classList.remove('show');   // 나타나는 동작이 끝 위치를 붙잡고 있으면 끌어도 안 움직인다
   });
   el.addEventListener('pointermove', (e) => {
     if (!down) return;
-    dx = e.clientX - sx; dy = Math.min(0, e.clientY - sy);
-    if (!toastSwiped && Math.abs(dx) < 6 && dy > -6) return;
+    dx = e.clientX - sx;
+    if (!toastSwiped && Math.abs(dx) < 6) return;
     if (!toastSwiped) { toastSwiped = true; el.setPointerCapture(e.pointerId); }
-    el.style.transform = `translate(${dx}px, ${dy}px)`;
-    el.style.opacity = String(Math.max(0.2, 1 - Math.hypot(dx, dy) / 220));
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220));
   });
   const end = () => {
     if (!down) return;
     down = false;
-    if (toastSwiped && (Math.abs(dx) > 60 || dy < -30)) hideToast();
+    if (toastSwiped && Math.abs(dx) > 60) hideToast();
     else el.style.transform = el.style.opacity = '';   // 덜 밀었으면 제자리로
   };
   el.addEventListener('pointerup', end);
