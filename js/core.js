@@ -42,13 +42,21 @@ function parseDate(s) {
 // 지난달(연별 보기는 작년) 지출 합계. 아직 진행 중인 달·해는 지난 기간도 같은 날짜까지만 더해서 공정하게 비교한다.
 // view: 보고 있는 달의 Date, t: 오늘('YYYY-MM-DD')
 function previousSpending(list, view, yearView, t = today()) {
+  const { rows, running } = previousOuts(list, view, yearView, t);
+  return { prev: rows.reduce((s, i) => s + i.amount, 0), running };
+}
+// 카테고리별로도 같은 기준으로 합친다 ({카테고리: 금액})
+function previousByCategory(list, view, yearView, t = today()) {
+  const byCat = {};
+  previousOuts(list, view, yearView, t).rows.forEach((i) => (byCat[i.category] = (byCat[i.category] || 0) + i.amount));
+  return byCat;
+}
+function previousOuts(list, view, yearView, t) {
   const running = yearView ? view.getFullYear() === Number(t.slice(0, 4)) : ym(view) === t.slice(0, 7);
   const prefix = yearView ? String(view.getFullYear() - 1) : ym(new Date(view.getFullYear(), view.getMonth() - 1, 1));
-  const prev = list
-    .filter((i) => i.type === 'out' && i.date.startsWith(prefix) &&
-      (!running || (yearView ? i.date.slice(5) <= t.slice(5) : Number(i.date.slice(8)) <= Number(t.slice(8)))))
-    .reduce((s, i) => s + i.amount, 0);
-  return { prev, running };
+  const rows = list.filter((i) => i.type === 'out' && i.date.startsWith(prefix) &&
+    (!running || (yearView ? i.date.slice(5) <= t.slice(5) : Number(i.date.slice(8)) <= Number(t.slice(8)))));
+  return { rows, running };
 }
 
 // 해당 월에 없는 날(31일 등)은 말일로 맞춘다
@@ -60,4 +68,17 @@ const byNewest = (a, b) =>
 function nowTime() {
   const d = new Date();
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 내역 검색: 띄어 쓴 낱말이 모두 들어 있는 내역을 최신순으로. 메모·카테고리·결제수단·소비 성격·날짜·금액에서 찾는다.
+// 금액은 '12000', '12,000', '12,000원' 어느 쪽으로 써도 찾고, 날짜는 '2026-11'이나 '2026-11-03'처럼 쓴다.
+const searchText = (s) => String(s || '').toLowerCase();
+function searchItems(list, query) {
+  const words = searchText(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return list.filter((i) => {
+    const hay = searchText([i.memo, i.category, PAY[i.pay], MOODS[i.mood], i.type === 'in' ? '수입' : '지출',
+      i.date, i.amount, i.amount.toLocaleString('ko-KR')].join(' '));
+    return words.every((w) => hay.includes(w) || hay.includes(w.replace(/[,원]/g, '')));
+  }).sort(byNewest);
 }

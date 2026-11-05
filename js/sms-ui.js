@@ -45,6 +45,20 @@ function renderSms() {
       nm.className = 'sms-name';
       nm.textContent = r.merchant;
       el.appendChild(nm);
+      if (r.status === 'remove' && r.target) {
+        // 어떤 내역이 지워지는지 보여 준다. 가맹점을 못 읽어서 금액만으로 찾았다면 틀릴 수 있으니 확인하라고 알린다
+        const t = r.target;
+        const del = document.createElement('div');
+        del.className = 'sms-target';
+        del.textContent = `지울 내역: ${Number(t.date.slice(5, 7))}/${Number(t.date.slice(8))}${t.time ? ' ' + t.time : ''} ${stripInst(t.memo) || t.category} -${won(t.amount)}`;
+        el.appendChild(del);
+        if (!r.merchant) {
+          const warn = document.createElement('div');
+          warn.className = 'sms-target warn';
+          warn.textContent = '가맹점을 읽지 못해 금액이 같은 가장 최근 내역을 골랐어요. 맞는지 확인하세요.';
+          el.appendChild(warn);
+        }
+      }
     }
     box.appendChild(el);
   });

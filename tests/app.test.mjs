@@ -248,3 +248,31 @@ test('통계 비교: 연별은 작년과 비교하고, 진행 중인 해는 같�
   const past = app.ctx.previousSpending(list, new Date(2025, 5, 1), true);
   assert.deepEqual([past.prev, past.running], [400, false]);
 });
+
+test('통계 비교: 카테고리별 지난 기간 합계', () => {
+  const list = [
+    { type: 'out', amount: 100, category: '식비', date: '2020-02-03' }, { type: 'out', amount: 50, category: '식비', date: '2020-02-20' },
+    { type: 'out', amount: 70, category: '카페', date: '2020-02-10' }, { type: 'in', amount: 999, category: '급여', date: '2020-02-10' },
+    { type: 'out', amount: 5, category: '식비', date: '2020-01-30' },
+  ];
+  assert.deepEqual({ ...app.ctx.previousByCategory(list, new Date(2020, 2, 1), false) }, { 식비: 150, 카페: 70 });
+});
+
+test('내역 검색: 낱말이 모두 들어 있는 내역만, 최신순', () => {
+  const list = [
+    { id: 1, type: 'out', amount: 4500, category: '카페', memo: '테스트카페', pay: 'card', date: '2026-11-02' },
+    { id: 2, type: 'out', amount: 12000, category: '식비', memo: '테스트식당', pay: 'cash', date: '2026-11-03' },
+    { id: 3, type: 'out', amount: 4500, category: '카페', memo: '테스트카페', pay: 'card', date: '2025-05-10' },
+    { id: 4, type: 'in', amount: 100000, category: '용돈', memo: '용돈', date: '2026-11-01' },
+  ];
+  const ids = (q) => Array.from(app.ctx.searchItems(list, q), (i) => i.id);   // vm 안의 배열은 바깥 배열과 구조가 같아도 달라서 옮겨 담는다
+  assert.deepEqual(ids('테스트카페'), [1, 3]);                 // 최신순
+  assert.deepEqual(ids('카페 2025'), [3]);                    // 낱말은 모두 맞아야 한다
+  assert.deepEqual(ids('4,500원'), [1, 3]);                   // 금액은 쉼표·원을 붙여도 찾는다
+  assert.deepEqual(ids('12000'), [2]);
+  assert.deepEqual(ids('2026-11-0'), [2, 1, 4]);              // 날짜 일부로도 찾는다
+  assert.deepEqual(ids('수입'), [4]);
+  assert.deepEqual(ids('현금'), [2]);                         // 결제수단
+  assert.deepEqual(ids('   '), []);                           // 빈 검색어는 아무것도 보여 주지 않는다
+  assert.deepEqual(ids('없는말'), []);
+});

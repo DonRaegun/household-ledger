@@ -68,6 +68,7 @@ function render() {
   } else {
     renderSettings();
   }
+  if ($('qdlg').open) renderSearch();   // 검색 창이 열려 있는 동안 내역을 고치면 결과도 같이 갱신한다
 }
 
 // 내역 탭 위쪽: 고정지출 확인 배너와 카드 출금 예정
@@ -220,7 +221,7 @@ function renderCal(month) {
 }
 
 // 통계 위쪽의 비교 카드: 지난달(연별은 작년)보다 얼마나 더·덜 썼는지
-function renderCompare(out, yearView) {
+function renderCompare(out, yearView, byCat, prevCat) {
   const box = $('cmp');
   const { prev, running } = previousSpending(items, cur, yearView);
   const name = (yearView ? '작년' : '지난달') + (running ? ' 같은 기간' : '');
@@ -234,16 +235,26 @@ function renderCompare(out, yearView) {
   el.className = diff > 0 ? 'up' : diff < 0 ? 'down' : 'same';
   el.textContent = diff === 0 ? '똑같이 썼어요' : `${diff > 0 ? '▲' : '▼'} ${won(Math.abs(diff))} ${diff > 0 ? '더' : '덜'} 썼어요 (${pct}%)`;
   $('cmp-detail').textContent = `${word} ${won(out)} · ${name} ${won(prev)}`;
+  // 무엇이 달라졌는지: 지난 기간과 비교해서 가장 많이 늘어난(늘지 않았다면 줄어든) 카테고리
+  const cats = [...new Set([...Object.keys(byCat), ...Object.keys(prevCat)])].map((c) => [c, (byCat[c] || 0) - (prevCat[c] || 0)]);
+  const up = cats.filter(([, d]) => d > 0).sort((a, b) => b[1] - a[1])[0];
+  const down = cats.filter(([, d]) => d < 0).sort((a, b) => a[1] - b[1])[0];
+  const pick = diff >= 0 ? up : down;
+  const top = $('cmp-top');
+  top.hidden = !pick;
+  if (pick) top.textContent = `${diff >= 0 ? '가장 많이 늘어난 곳' : '가장 많이 줄어든 곳'}: ${pick[0]} ${pick[1] > 0 ? '▲' : '▼'} ${won(Math.abs(pick[1]))}`;
 }
 
 function renderStats(period, out, yearView) {
   $('year-wrap').hidden = !yearView;
   if (yearView) renderYearBars(period);
-  renderCompare(out, yearView);
 
   const outs = period.filter((i) => i.type === 'out');
   const byCat = {};
   outs.forEach((i) => (byCat[i.category] = (byCat[i.category] || 0) + i.amount));
+  const prevCat = previousByCategory(items, cur, yearView);
+  const hasPrev = Object.keys(prevCat).length > 0;   // 비교할 지난 기간의 지출이 없으면 증감을 보여 주지 않는다
+  renderCompare(out, yearView, byCat, prevCat);
   const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   if (selCat && !byCat[selCat]) selCat = null;
 
@@ -254,10 +265,17 @@ function renderStats(period, out, yearView) {
     const li = document.createElement('li');
     li.dataset.cat = cat;
     if (cat === selCat) li.classList.add('sel');
-    li.innerHTML = '<div class="top"><span class="name"><i class="dot"></i><em></em></span><b></b></div><div class="bar"><i></i></div>';
+    li.innerHTML = '<div class="top"><span class="name"><i class="dot"></i><em></em></span><span class="r"><b></b><small class="delta"></small></span></div><div class="bar"><i></i></div>';
     li.querySelector('.dot').style.background = color(cat);
     li.querySelector('em').textContent = `${cat} (${Math.round((amt / out) * 100)}%)`;
     li.querySelector('b').textContent = won(amt);
+    const dl = li.querySelector('.delta');   // 지난 기간 대비 증감 (같은 날짜 기준으로 맞춘 값)
+    const diff = amt - (prevCat[cat] || 0);
+    dl.hidden = !hasPrev || diff === 0;
+    if (!dl.hidden) {
+      dl.className = 'delta ' + (prevCat[cat] === undefined ? 'new' : diff > 0 ? 'up' : 'down');
+      dl.textContent = prevCat[cat] === undefined ? '새로 생겼어요' : `${diff > 0 ? '▲' : '▼'} ${won(Math.abs(diff))}`;
+    }
     const bar = li.querySelector('.bar i');
     bar.style.width = (amt / rows[0][1]) * 100 + '%';
     bar.style.background = color(cat);
