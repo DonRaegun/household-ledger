@@ -63,6 +63,12 @@ function bankParty(block, dir) {
       if (usable(before) && !/\d{3,}/.test(before)) return before;
       continue;
     }
+    if (/→|->/.test(line)) {   // '보낸 사람 → 내 통장'(입금) / '내 통장 → 받는 사람'(출금): 상대방 쪽을 쓴다
+      const [from, to] = line.split(/\s*(?:→|->)\s*/);
+      const side = clean(dir === 'in' ? from : to);
+      if (usable(side) && !/\d{3,}/.test(side)) return side;
+      continue;
+    }
     if (SMS_WHEN.test(line) || /\d{3,}/.test(line)) continue;
     const t = clean(line);
     if (usable(t)) return t;

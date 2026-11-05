@@ -166,7 +166,7 @@ button:disabled { opacity: .4; cursor: default; }
   position: fixed; z-index: 30; left: 12px; right: 12px; max-width: 536px; margin: 0 auto;
   top: calc(env(safe-area-inset-top) + 70px);
   display: flex; align-items: center; gap: 12px; padding: 14px 14px 16px; overflow: hidden;
-  border-radius: 18px; background: #1f2430; color: #fff;
+  border-radius: 18px; background: #1f2430; color: #fff; touch-action: none;   /* 밀어서 치우는 동작을 브라우저 스크롤이 가로채지 않게 */
   border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
 }
 #toast.show { animation: toast-in .32s cubic-bezier(.2, .9, .3, 1.15) both; }

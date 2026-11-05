@@ -39,6 +39,17 @@ test('카드 앱 알림: 제목의 금액 + "카드 | 가맹점(일시불)" 본�
   assert.deepEqual([t.amount, t.merchant, t.inst], [8000, '테스트상점', 3]);
 });
 
+test('입출금: 제목의 금액 + "이름 → 입출금통장" 본문 형식', () => {
+  const inn = parse(stamp('09:14') + '입금 30,000원\n테스트인 → 입출금통장(1234)\n잔액 152,327원');
+  assert.deepEqual([inn.type, inn.bank, inn.amount, inn.merchant, inn.time], ['in', true, 30000, '테스트인', '09:14']);
+  const out = parse(stamp('09:20') + '출금 12,000원\n입출금통장(1234) → 테스트상점\n잔액 140,327원');
+  assert.deepEqual([out.type, out.amount, out.merchant], ['out', 12000, '테스트상점']);
+});
+
+test('입출금통장이라는 말만 있고 입금·출금 표시가 없으면 읽지 않는다', () => {
+  assert.equal(parse(stamp('09:14') + '테스트인 → 입출금통장\n잔액 152,327원'), null);
+});
+
 test('카드 취소는 cancel로 읽는다', () => {
   const r = parse(stamp('12:00') + '우리카드 승인취소\n5,000원\n11/03 11:59\n테스트카페');
   assert.equal(r.cancel, true);
