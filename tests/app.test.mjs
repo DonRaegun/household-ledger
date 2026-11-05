@@ -32,6 +32,13 @@ test('카드 앱 알림: 누적 금액은 금액으로 읽지 않는다', () => 
   assert.deepEqual([r.amount, r.merchant, r.time], [12300, '테스트철도공사', '11:20']);
 });
 
+test('카드 앱 알림: 제목의 금액 + "카드 | 가맹점(일시불)" 본문 형식', () => {
+  const r = parse(stamp('16:32') + '32,420원 결제\n테스트카드 | 테스트몰(테스트페이)(일시불)');
+  assert.deepEqual([r.type, r.amount, r.merchant, r.inst, r.time], ['out', 32420, '테스트몰(테스트페이)', 0, '16:32']);
+  const t = parse(stamp('16:32') + '8,000원 결제\n테스트카드 | 테스트상점(3개월)');
+  assert.deepEqual([t.amount, t.merchant, t.inst], [8000, '테스트상점', 3]);
+});
+
 test('카드 취소는 cancel로 읽는다', () => {
   const r = parse(stamp('12:00') + '우리카드 승인취소\n5,000원\n11/03 11:59\n테스트카페');
   assert.equal(r.cancel, true);

@@ -78,6 +78,8 @@ function parseSms(block) {
     posted = g.slice(0, 5).map(Number);
     return '';
   });
+  // '테스트카드 | 가맹점(일시불)'처럼 카드 이름이 앞에 붙은 줄은 카드 이름을 떼고 가맹점만 남긴다
+  block = block.replace(/^[ \t]*[가-힣A-Za-z]*(?:체크|카드|신용)[가-힣A-Za-z]*[ \t]*\|[ \t]*/gm, '');
   const w = block.match(SMS_WHEN);
   const bank = isBank(block);
   const a = bank ? null : block.match(/(\d[\d,]*)\s*원/);
@@ -116,7 +118,7 @@ function parseSms(block) {
   }
   // 가맹점: 날짜·시각 뒤(우리카드 형식)에서 먼저 찾고, 없으면 글 전체에서 라벨 줄을 뺀 첫 줄(KB국민 형식: 금액 뒤·날짜 앞)을 쓴다
   const merchant = (textLines(rest).find(isMerchantLine) || textLines(block).find(isMerchantLine) || '')
-    .replace(/（/g, '(').replace(/）/g, ')');
+    .replace(/（/g, '(').replace(/）/g, ')').replace(/\s*\((?:일시불|\d+\s*개월)\)$/, '');
   const inst = block.match(/(\d+)\s*개월/);
   return {
     type: 'out', cancel, amount: Number(a[1].replace(/,/g, '')),
