@@ -177,7 +177,6 @@ function renderList(month) {
   const list = $('list');
   list.innerHTML = '';
   const pin = pinnedDate(month);
-  const rest = month.filter((i) => i.date !== pin);
   if (month.length) {
     list.appendChild(dayHead(pin, month));
     const pinned = month.filter((i) => i.date === pin);
@@ -190,27 +189,24 @@ function renderList(month) {
     }
   }
   const btn = $('hist-open');
-  btn.hidden = !rest.length;
-  btn.textContent = ym(cur) === today().slice(0, 7) ? '이전 내역 보기' : '다른 날 내역 보기';
+  btn.hidden = !month.length;   // 그 달에 내역이 있으면 늘 보인다 (오늘 내역만 있어도)
+  btn.textContent = '이전 내역 보기';
   $('empty').hidden = month.length > 0;
 }
 
-// 내역 더보기 창: 오늘(고정으로 보이는 날)을 뺀 그 달의 나머지 내역을 날짜별로 보여 준다
+// 이전 내역 창: 보고 있는 그 달의 내역 전체를 날짜별로 보여 준다
 function renderHistory() {
   const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
-  const pin = pinnedDate(month);
-  const rest = month.filter((i) => i.date !== pin);
-  const out = rest.filter((i) => i.type === 'out').reduce((s, i) => s + i.amount, 0);
+  const out = month.filter((i) => i.type === 'out').reduce((s, i) => s + i.amount, 0);
   $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월 내역`;
-  $('h-sum').textContent = `${rest.length}건${out ? ` · 지출 ${won(out)}` : ''}`;
+  $('h-sum').textContent = month.length ? `${month.length}건${out ? ` · 지출 ${won(out)}` : ''}` : '이 달에는 내역이 없어요.';
   const list = $('h-list');
   list.innerHTML = '';
-  for (const i of rest) {
-    if (!list.lastDate || list.lastDate !== i.date) { list.lastDate = i.date; list.appendChild(dayHead(i.date, rest)); }
+  let last = '';
+  for (const i of month) {
+    if (i.date !== last) { last = i.date; list.appendChild(dayHead(i.date, month)); }
     list.appendChild(itemEl(i));   // 눌러서 수정·삭제하면 저장 뒤 render()가 이 목록도 다시 그린다
   }
-  list.lastDate = '';
-  if (!rest.length) $('hdlg').close();
 }
 $('hist-open').onclick = () => { renderHistory(); $('hdlg').showModal(); $('h-list').scrollTop = 0; };
 $('h-close').onclick = () => $('hdlg').close();

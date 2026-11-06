@@ -30,7 +30,11 @@ function autoApplyFixed() {
     // 결제 알림으로 이미 들어온 같은 결제(같은 날 같은 금액, 이름이 닮으면 하루 차이까지)가 있으면 새로 넣지 않는다
     const same = items.find((i) => !i.fixedId && i.smsKey && i.type === 'out' && i.amount === p.f.amount && !claimed.has(i) &&
       (i.date === p.date || (dayGap(i.date, p.date) <= 1 && sameName(i.memo, p.f.name))));
-    if (same) { same.fixedId = p.f.id; claimed.add(same); return; }
+    if (same) {   // 알림이 먼저 들어온 경우: 고정지출과 합치고, 알림에서 분류를 못 맞혀 '기타'였다면 고정지출의 분류(고정비·구독)를 따른다
+      same.fixedId = p.f.id; claimed.add(same);
+      if (same.category === '기타') same.category = p.f.category;
+      return;
+    }
     const id = Date.now() + n;
     ids.push(id);
     items.push({

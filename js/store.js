@@ -92,7 +92,7 @@ function cleanFixed(f) {
   if (!Number.isFinite(amount) || amount <= 0 || !(day >= 1 && day <= 31) || !MONTH_RE.test(f.since)) return null;
   const out = {
     id: f.id.slice(0, 40), name: f.name.slice(0, 60), amount: Math.round(amount), day, since: f.since,
-    category: CATEGORIES.out.includes(catName(f.category)) ? catName(f.category) : '기타', pay: PAY[f.pay] ? f.pay : 'card', sub: !!f.sub,
+    category: f.sub ? '구독' : CATEGORIES.out.includes(catName(f.category)) ? catName(f.category) : '기타', pay: PAY[f.pay] ? f.pay : 'card', sub: !!f.sub,
   };
   if (MOODS[f.mood]) out.mood = f.mood;
   return out;
@@ -115,6 +115,7 @@ function normSettings(s) {
     npStat: normNpStat(s.npStat),
     autoBackup: s.autoBackup !== false,    // 일주일마다 다운로드 폴더에 백업 파일을 저장할지 (안드로이드 앱, 기본: 켬)
     lastAutoBackup: typeof s.lastAutoBackup === 'string' && DATE_RE.test(s.lastAutoBackup) ? s.lastAutoBackup : '',
+    catV: Number(s.catV) || 0,             // 카테고리 정리 버전 (3: 구독 고정지출의 내역을 '구독'으로 옮김)
     autoBackupSig: typeof s.autoBackupSig === 'string' ? s.autoBackupSig.slice(0, 24) : '',   // 마지막 자동 백업 때의 내역 지문
   };
 }
@@ -134,6 +135,13 @@ function saveSettings() { return persist(SKEY, settings); }
 
 let items = load();
 let settings = loadSettings();
+// 구독 카테고리가 생기기 전에 만든 구독 고정지출의 내역도 '구독'으로 옮긴다 (한 번만)
+if (settings.catV < 3) {
+  const subIds = new Set(settings.fixed.filter((f) => f.sub).map((f) => f.id));
+  for (const i of items) if (i.type === 'out' && i.fixedId && subIds.has(i.fixedId)) i.category = '구독';
+  settings.catV = 3;
+  persist(KEY, items); persist(SKEY, settings);
+}
 let cur = new Date(); cur.setDate(1);
 let tab = 'list';          // 'list' | 'stats' | 'settings'
 let listMode = 'list';     // 'list' | 'cal'

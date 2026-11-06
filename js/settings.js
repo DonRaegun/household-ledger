@@ -115,10 +115,10 @@ function setFday(d) {
 }
 $('fday-btn').onclick = () => openDayPicker(Number($('fday').value), setFday);
 
-// 고정지출은 '고정비'(월세·통신·보험 등)와 '구독'(넷플릭스 등) 둘 중 하나로 고른다. 구독은 문화/여가, 고정비는 고정비 카테고리로 들어간다
+// 고정지출은 '고정비'(월세·통신·보험 등)와 '구독'(넷플릭스 등) 둘 중 하나로 고른다. 구독은 구독, 고정비는 고정비 카테고리로 들어간다
 const FKIND = {
   fixed: { category: '고정비', hint: '월세, 통신비, 보험료처럼 꼭 내야 하는 돈이에요. 고정비로 들어가요.' },
-  sub: { category: '문화/여가', hint: '넷플릭스, 유튜브처럼 해지할 수 있는 서비스예요. 문화/여가로 들어가고 구독 목록에 모여요.' },
+  sub: { category: '구독', hint: '넷플릭스, 유튜브처럼 해지할 수 있는 서비스예요. 구독으로 들어가고 구독 목록에 모여요.' },
 };
 let fKindOf = 'fixed', fFromCategory = null;   // 열었을 때의 종류와 카테고리 (종류를 안 바꾸면 원래 카테고리를 그대로 둔다)
 const fKind = () => document.querySelector('input[name=fkind]:checked').value;
