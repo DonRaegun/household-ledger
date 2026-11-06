@@ -44,7 +44,6 @@
     <div class="listbar">
       <div class="lb-left">
         <span id="list-count"></span>
-        <button type="button" id="fold-all" hidden></button>
       </div>
       <button type="button" id="search-open" aria-label="내역 검색">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
@@ -56,6 +55,7 @@
     </div>
     <div id="list-wrap">
       <ul id="list"></ul>
+      <button type="button" id="hist-open" hidden></button>
       <p id="empty" hidden>내역이 없어요. 아래 + 버튼으로 추가하세요.</p>
     </div>
     <div id="view-cal" hidden>
@@ -71,14 +71,23 @@
       <button data-mode="year">연별</button>
     </div>
     <div id="cmp" hidden>
-      <span id="cmp-label"></span>
-      <b id="cmp-diff"></b>
-      <small id="cmp-detail"></small>
-      <small id="cmp-top" hidden></small>
-    </div>
-    <div id="year-wrap" hidden>
-      <h2>월별 지출</h2>
-      <div id="year-bars"></div>
+      <div id="cmp-track">
+        <div class="cmp-slide" id="year-wrap" hidden>
+          <span>월별 지출</span>
+          <div id="year-bars"></div>
+        </div>
+        <div class="cmp-slide" id="cmp-s2">
+          <span id="wk-label"></span>
+          <div id="wk-chart"></div>
+        </div>
+        <div class="cmp-slide" id="cmp-s1">
+          <span id="cmp-label"></span>
+          <b id="cmp-diff"></b>
+          <small id="cmp-detail"></small>
+          <small id="cmp-top" hidden></small>
+        </div>
+      </div>
+      <div id="cmp-dots" hidden></div>
     </div>
     <h2>카테고리별 지출</h2>
     <div id="donut-wrap">
@@ -97,69 +106,58 @@
   </section>
 
   <section id="view-settings" hidden>
-    <h2>화면 모드</h2>
+    <h2>화면</h2>
     <div class="panel">
-      <div class="toggle" id="theme-mode" role="radiogroup" aria-label="화면 모드">
-        <button type="button" role="radio" data-theme="auto">자동</button>
-        <button type="button" role="radio" data-theme="light">밝게</button>
-        <button type="button" role="radio" data-theme="dark">어둡게</button>
+      <div class="set-row">
+        <span class="sw-text">화면 모드</span>
+        <div class="toggle" id="theme-mode" role="radiogroup" aria-label="화면 모드">
+          <button type="button" role="radio" data-theme="auto">자동</button>
+          <button type="button" role="radio" data-theme="light">밝게</button>
+          <button type="button" role="radio" data-theme="dark">어둡게</button>
+        </div>
       </div>
-      <p class="hint">자동은 폰의 다크 모드 설정을 따라가요.</p>
     </div>
 
     <div id="np-section" hidden>
-      <h2>결제 알림 자동 읽기</h2>
+      <h2>결제 알림</h2>
       <div class="panel">
         <div class="np-status">
-          <span>알림 접근 <b id="np-state"></b></span>
+          <span class="sw-text">알림 접근 <b id="np-state"></b></span>
           <button type="button" id="np-open">알림 접근 켜기</button>
         </div>
         <p class="hint np-last" id="np-last" hidden></p>
-        <details class="more">
-          <summary>자세히 보기</summary>
-          <p class="hint">켜면 문자와 카드·은행 앱의 <b>결제·입출금 알림만</b> 골라서 이 앱에 모아 둬요. 입금은 수입, 출금은 지출(계좌이체)로 넣어요. 카드대금처럼 카드 사용 내역과 겹칠 수 있는 출금은 확인을 받아요. 그 밖의 알림은 저장하지 않고 버리고, 카드·계좌 번호와 가려진 이름도 저장 전에 지워요. 모아 둔 알림은 앱에서 확인한 뒤에만 가계부에 들어가요.</p>
-          <p class="hint">갤럭시에서 알림이 안 모이면 "배터리 → 절전 제외 앱"에 이 앱을 추가해 주세요.</p>
-        </details>
-      </div>
-      <div class="panel np-auto">
-        <label class="switch-row">
+        <label class="switch-row set-sep">
           <span class="sw-text">확인 없이 자동으로 가계부에 넣기</span>
           <span class="switch"><input id="auto-apply" type="checkbox" role="switch"><i></i></span>
         </label>
         <p class="hint" id="auto-note" hidden>알림 접근을 먼저 켜 주세요.</p>
         <details class="more">
           <summary>자세히 보기</summary>
-          <p class="hint">읽힌 <b>새 결제·입출금</b>만 자동으로 넣고, 넣은 직후에는 "되돌리기"로 지울 수 있어요.</p>
-          <p class="hint">금액, 가맹점, 날짜·시각이 모두 읽힌 새 결제만 자동으로 넣어요. 취소이거나 하나라도 불확실한 알림은 확인을 받아요. 자동으로 들어간 내역에는 "자동" 표시가 붙고, 눌러서 고치면 표시가 사라져요.</p>
+          <p class="hint">켜면 문자와 카드·은행 앱의 <b>결제·입출금 알림만</b> 골라 모아 둬요. 입금은 수입, 출금은 지출로 넣고, 카드대금처럼 겹칠 수 있는 출금은 확인을 받아요. 그 밖의 알림과 카드·계좌 번호는 저장하지 않아요. 모아 둔 알림은 앱에서 확인한 뒤에만 가계부에 들어가요.</p>
+          <p class="hint">자동으로 넣기는 금액, 가맹점, 시각이 모두 읽힌 <b>새 결제</b>만 바로 넣고, 넣은 직후에는 "되돌리기"로 지울 수 있어요. 취소이거나 불확실한 알림은 확인을 받아요. 자동 내역에는 "자동" 표시가 붙고, 눌러서 고치면 사라져요.</p>
+          <p class="hint">갤럭시에서 알림이 안 모이면 "배터리 → 절전 제외 앱"에 이 앱을 추가해 주세요.</p>
         </details>
       </div>
     </div>
 
-    <h2>카드와 고정지출</h2>
+    <h2>카드</h2>
     <div class="panel">
-      <div class="field">결제일 <button type="button" class="pick-btn" id="card-day-btn"></button></div>
-      <div class="field">사용 기간 시작일 <button type="button" class="pick-btn" id="card-start-btn"></button></div>
+      <div class="field"><span class="sw-text">결제일</span> <button type="button" class="pick-btn" id="card-day-btn"></button></div>
+      <div class="field"><span class="sw-text">사용 기간 시작일</span> <button type="button" class="pick-btn" id="card-start-btn"></button></div>
       <p class="hint" id="card-hint"></p>
     </div>
 
-    <h3 id="sub-title" class="sub" hidden>구독</h3>
-    <ul id="sub-list"></ul>
-    <h3 id="fixed-title" class="sub">고정지출</h3>
-    <ul id="fixed-list"></ul>
-    <button id="fixed-add" class="wide">+ 고정지출 추가</button>
-    <p class="hint">정해진 날짜가 되면 앱을 열 때 자동으로 내역에 추가돼요. 날짜 전에는 내역 탭에 "예정"으로 표시되고, 통계에는 날짜가 된 뒤부터 들어가요.</p>
-
     <details class="panel fold">
       <summary>캘린더에 알림 추가</summary>
-      <div class="field">알림 시점 <button type="button" class="pick-btn" id="remind-days-btn"></button></div>
+      <div class="field"><span class="sw-text">알림 시점</span> <button type="button" class="pick-btn" id="remind-days-btn"></button></div>
       <div class="row">
         <button id="ics-card">카드 출금일 알림</button>
         <button id="ics-fixed">고정지출 알림</button>
       </div>
-      <p class="hint">일정 파일을 캘린더 앱에 추가하면, 앱을 안 열어도 캘린더가 알려줘요. 누르면 일정 파일이 내려받아져요. 파일을 열어 캘린더 앱(삼성 캘린더, 구글 캘린더)에 추가하세요. 앞으로 12개월치가 등록되고, 같은 항목을 다시 추가하면 대부분의 캘린더에서 중복 없이 갱신돼요. 결제일이나 금액을 바꿨다면 다시 추가하세요.</p>
+      <p class="hint">일정 파일을 내려받아 캘린더 앱(삼성, 구글)에서 열면 앞으로 12개월치가 등록돼요. 결제일이나 금액을 바꿨다면 다시 추가하세요. 같은 항목은 중복 없이 갱신돼요.</p>
     </details>
 
-    <h2>데이터 관리</h2>
+    <h2>데이터</h2>
     <div id="backup-tip" hidden></div>
     <div id="ab-section" class="panel" hidden>
       <label class="switch-row">
@@ -169,10 +167,10 @@
       <p class="hint" id="ab-last"></p>
       <details class="more">
         <summary>자세히 보기</summary>
-        <p class="hint">내역이 바뀌었을 때만, 앱을 열면 다운로드/가계부백업 폴더에 백업 파일(JSON)을 저장하고 최근 8개만 남겨요. 앱 데이터를 지워도 남아 있지만, 폰을 잃으면 같이 사라지니 가끔 아래 "백업(JSON)"으로 드라이브 등에 따로 보내 두세요. 파일에는 내 모든 내역이 그대로 들어 있어요.</p>
+        <p class="hint">내역이 바뀐 경우에만 앱을 열 때 다운로드/가계부백업 폴더에 저장하고 최근 8개만 남겨요. 폰을 잃으면 같이 사라지니 가끔 아래 "백업(JSON)"으로 드라이브 등에 따로 보내 두세요. 파일에는 내 모든 내역이 들어 있어요.</p>
       </details>
     </div>
-    <div class="row stack">
+    <div class="link-list">
       <button id="export-csv">CSV 내보내기</button>
       <button id="export-json">백업(JSON)</button>
       <button id="import-json">백업 불러오기</button>
@@ -183,13 +181,12 @@
       <h2>앱 업데이트</h2>
       <div class="panel">
         <div class="np-status">
-          <span>새 버전이 있는지 확인해요</span>
+          <span class="sw-text">새 버전 확인</span>
           <button type="button" id="update-check">업데이트 확인</button>
         </div>
         <details class="more">
           <summary>자세히 보기</summary>
-          <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요.</p>
-          <p class="hint">이 앱의 공개 릴리스 페이지만 확인해요. 새 버전은 내려받은 뒤 설치 화면에서 "설치"를 눌러야 바뀌어요.</p>
+          <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요. 새 버전은 내려받은 뒤 설치 화면에서 "설치"를 눌러야 바뀌어요.</p>
         </details>
       </div>
     </div>
@@ -265,6 +262,31 @@
     <button type="button" id="p-cancel">취소</button>
     <button type="button" id="p-ok" class="primary">확인</button>
   </div>
+</dialog>
+
+<dialog id="xdlg" tabindex="-1">
+  <div class="q-head">
+    <b id="x-title">고정지출</b>
+    <button type="button" id="x-close">닫기</button>
+  </div>
+  <p class="hint" id="x-sum"></p>
+  <div id="x-list">
+    <h3 id="sub-title" class="sub" hidden>구독</h3>
+    <ul id="sub-list"></ul>
+    <h3 id="fixed-title" class="sub" hidden>고정지출</h3>
+    <ul id="fixed-list"></ul>
+  </div>
+  <button id="fixed-add" class="wide">+ 고정지출 추가</button>
+  <p class="hint">정해진 날짜가 되면 앱을 열 때 자동으로 내역에 추가돼요. 날짜 전에는 내역에 "예정"으로 보여요.</p>
+</dialog>
+
+<dialog id="hdlg" tabindex="-1">
+  <div class="q-head">
+    <b id="h-title"></b>
+    <button type="button" id="h-close">닫기</button>
+  </div>
+  <p class="hint" id="h-sum"></p>
+  <ul id="h-list"></ul>
 </dialog>
 
 <dialog id="qdlg" tabindex="-1">

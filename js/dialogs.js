@@ -27,11 +27,8 @@ $('stats').addEventListener('click', (e) => {
 });
 $('year-bars').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-m]');
-  if (!b) return;
-  cur = new Date(cur.getFullYear(), Number(b.dataset.m), 1);
-  statsMode = 'month';
-  selCat = null;
-  render();
+  if (!b || b.classList.contains('off')) return;
+  pickYearMonth(Number(b.dataset.m));   // 누른 달의 금액만 보여 준다 (이동하지 않는다)
 });
 $('cal-grid').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-date]');
@@ -319,3 +316,15 @@ $('del').onclick = async () => {
   }
 };
 $('fab').onclick = () => openDialog();
+
+// 비교 카드: 옆으로 밀어 주별 지출을 보고, 아래 점이 어느 칸인지 알려 준다
+function syncCmpDots() {
+  const tr = $('cmp-track');
+  const k = Math.round(tr.scrollLeft / (tr.clientWidth || 1));
+  document.querySelectorAll('#cmp-dots i').forEach((d, i) => d.classList.toggle('on', i === k));
+}
+$('cmp-track').addEventListener('scroll', syncCmpDots, { passive: true });
+$('wk-chart').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-m]');
+  if (b && !b.classList.contains('off')) pickPoint($('wk-chart'), Number(b.dataset.m));
+});

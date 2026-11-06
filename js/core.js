@@ -59,6 +59,15 @@ function previousOuts(list, view, yearView, t) {
   return { rows, running };
 }
 
+// 한 달을 7일씩 끊은 주별 지출: 1주=1~7일, 2주=8~14일 ... (마지막 주는 말일까지)
+function weeklySpending(list, view) {
+  const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const weeks = Array.from({ length: Math.ceil(days / 7) }, (_, k) => ({ n: k + 1, from: k * 7 + 1, to: Math.min(days, k * 7 + 7), sum: 0 }));
+  const p = ym(view);
+  list.filter((i) => i.type === 'out' && i.date.startsWith(p)).forEach((i) => { weeks[Math.floor((Number(i.date.slice(8)) - 1) / 7)].sum += i.amount; });
+  return weeks;
+}
+
 // 해당 월에 없는 날(31일 등)은 말일로 맞춘다
 const clampDay = (y, m, day) => Math.min(day, new Date(y, m + 1, 0).getDate());
 

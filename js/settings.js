@@ -20,11 +20,10 @@ const prefersDark = () => !!(window.matchMedia && matchMedia('(prefers-color-sch
 function applyTheme(animate) {
   const t = settings.theme;
   const root = document.documentElement;
-  if (animate) {
-    root.classList.add('theme-fade');   // 색이 서서히 바뀌게 잠깐만 켜 둔다
-    setTimeout(() => root.classList.remove('theme-fade'), 400);
-  }
-  if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+  // 요소마다 색이 따로 바뀌면 그라데이션처럼 전환되지 않는 부분이 번뜩이므로, 화면을 통째로 크로스페이드한다 (지원하지 않으면 바로 바뀐다)
+  const swap = () => { if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t; };
+  if (animate && document.startViewTransition && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) document.startViewTransition(swap);
+  else swap();
   const dark = t === 'dark' || (t === 'auto' && prefersDark());
   // 브라우저 위쪽 색(theme-color): 자동일 때는 폰 모드에 따라 고르도록 원래 쌍을 두고, 직접 골랐으면 그 색 하나로 맞춘다
   document.querySelectorAll('meta[name=theme-color]').forEach((m) => {
@@ -60,18 +59,28 @@ function renderSettings() {
   $('card-hint').textContent = s === 1
     ? '매달 1일~말일에 쓴 금액이 다음 달 결제일에 출금되는 카드예요.'
     : `매달 ${s}일부터 다음 달 ${s - 1}일까지 쓴 금액이 그다음 달 결제일에 출금되는 카드예요. (예: 10/${s}~11/${s - 1} 사용분 → 12월 결제일)`;
-  // 구독은 비싼 순으로 따로 모아 월/연 합계를 보여주고, 나머지는 날짜 순으로 보여준다
+}
+
+// 고정지출: 구독은 비싼 순으로 따로 모아 월/연 합계를 보여주고, 나머지는 날짜 순으로 보여준다 (내역 탭의 고정지출 창)
+function fixedSummary() {
   const sum = (arr) => arr.reduce((s, f) => s + f.amount, 0);
   const subs = settings.fixed.filter((f) => f.sub).sort((a, b) => b.amount - a.amount);
   const rest = settings.fixed.filter((f) => !f.sub).sort((a, b) => a.day - b.day);
+  return { subs, rest, sum, total: sum(settings.fixed) };
+}
+function renderFixedList() {
+  const { subs, rest, sum, total } = fixedSummary();
+  $('x-sum').textContent = settings.fixed.length ? `${settings.fixed.length}개 · 월 ${won(total)}` : '월세, 구독료처럼 매달 나가는 돈을 추가해 두세요.';
   $('sub-title').hidden = !subs.length;
   $('sub-title').textContent = `구독 ${subs.length}개 · 월 ${won(sum(subs))} (연 ${won(sum(subs) * 12)})`;
-  $('fixed-title').hidden = !rest.length && subs.length > 0;
-  $('fixed-title').textContent = rest.length
-    ? `${subs.length ? '그 외 ' : ''}고정지출 (월 ${won(sum(rest))})` : '고정지출';
+  $('fixed-title').hidden = !rest.length || !subs.length;   // 구독이 없으면 소제목 없이 목록만
+  $('fixed-title').textContent = `그 외 고정지출 (월 ${won(sum(rest))})`;
   fillFixedList($('sub-list'), subs);
   fillFixedList($('fixed-list'), rest);
 }
+$('x-close').onclick = () => $('xdlg').close();
+function openFixedList() { renderFixedList(); $('xdlg').showModal(); $('x-list').scrollTop = 0; }
+$('upcoming').onclick = openFixedList;
 
 function fillFixedList(list, rows) {
   list.innerHTML = '';

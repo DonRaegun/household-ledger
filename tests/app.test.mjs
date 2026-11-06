@@ -331,3 +331,16 @@ test('금액 한글 읽기', () => {
   assert.equal(k(NaN), '');
   assert.equal(k(1e16), '');               // 너무 크면 읽지 않는다
 });
+
+test('주별 지출: 한 달을 7일씩 끊어 지출만 더한다', () => {
+  const list = [
+    { type: 'out', amount: 10, date: '2026-02-01' }, { type: 'out', amount: 20, date: '2026-02-07' },
+    { type: 'out', amount: 5, date: '2026-02-08' }, { type: 'out', amount: 3, date: '2026-02-28' },
+    { type: 'in', amount: 999, date: '2026-02-10' },      // 수입은 더하지 않는다
+    { type: 'out', amount: 7, date: '2026-03-01' },        // 다른 달
+  ];
+  const w = Array.from(app.run('weeklySpending(' + JSON.stringify(list) + ', new Date(2026, 1, 1))'));
+  assert.deepEqual(w.map((x) => [x.from, x.to, x.sum]), [[1, 7, 30], [8, 14, 5], [15, 21, 0], [22, 28, 3]]);
+  const m = Array.from(app.run('weeklySpending([], new Date(2026, 0, 1))'));
+  assert.deepEqual([m.length, m[4].from, m[4].to], [5, 29, 31]);   // 31일인 달은 5주, 마지막 주는 말일까지
+});

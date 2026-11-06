@@ -68,7 +68,7 @@ function render() {
   } else {
     renderSettings();
   }
-  updateFoldAll();
+  if ($('hdlg').open) renderHistory();   // 이전 내역 창이 열려 있는 동안 내역을 고치면 같이 갱신한다
   if ($('qdlg').open) renderSearch();   // 검색 창이 열려 있는 동안 내역을 고치면 결과도 같이 갱신한다
 }
 
@@ -83,8 +83,12 @@ function renderExtras() {
 
   const upcoming = upcomingFixed();
   const up = $('upcoming');
-  up.hidden = tab !== 'list' || !upcoming.length;
-  if (!up.hidden) {
+  up.hidden = tab !== 'list';   // 고정지출 창으로 들어가는 줄: 예정이 있으면 예정을, 없으면 등록된 고정지출을 보여 준다
+  if (!up.hidden && !upcoming.length) {
+    up.innerHTML = '<span></span><b></b>';
+    up.querySelector('span').textContent = settings.fixed.length ? `고정지출 ${settings.fixed.length}개` : '고정지출 추가하기';
+    up.querySelector('b').textContent = settings.fixed.length ? `월 ${won(settings.fixed.reduce((s, f) => s + f.amount, 0))}` : '';
+  } else if (!up.hidden) {
     const names = upcoming.slice(0, 2).map((u) => `${Number(u.date.slice(8))}일 ${u.f.name}`).join(', ');
     up.innerHTML = '<span></span><b></b>';
     up.querySelector('span').textContent = `예정 고정지출 ${upcoming.length}건 (${names}${upcoming.length > 2 ? ' 외' : ''})`;
@@ -128,6 +132,7 @@ function renderExtras() {
   }
   $('info-box').hidden = pt.hidden && nt.hidden;
   $('summary').querySelector('.s-extra').hidden = box.hidden && up.hidden;
+  renderFixedList();
   const n = tab === 'list' ? items.filter((i) => i.date.startsWith(ym(cur))).length : 0;
   $('list-count').textContent = n ? `${n}건` : '';
 }
@@ -162,82 +167,51 @@ function dayHead(date, month) {
   return li;
 }
 
-// ---- 날짜별 접기·펼치기 ----
-// 기본: 오늘은 펼치고 나머지 날은 접는다(이미 끝난 달은 모두 접힌다). 눌러서 바꾼 상태는 같은 달을 보는 동안 유지하고, 달을 옮기면 기본으로 돌아온다.
-// 방금 들어온 내역(자동 추가 등)이 있는 날은 접혀 있어도 펼쳐서 놓치지 않게 한다.
-const dayState = new Map();   // 날짜 -> 펼침 여부 (눌러서 정한 것만)
-let dayStateMonth = '';
-const dayIsOpen = (date) => (dayState.has(date) ? dayState.get(date) : date === today());
-
-function dayBlock(date, dayItems) {
-  const open = dayIsOpen(date);
-  const li = document.createElement('li');
-  li.className = 'dayblock' + (open ? ' open' : '');
-  li.dataset.date = date;
-  const head = document.createElement('button');
-  head.type = 'button';
-  head.className = 'day-head';
-  head.setAttribute('aria-expanded', String(open));
-  head.innerHTML = '<i class="chev" aria-hidden="true">›</i><span class="day-label"></span><span class="day-n"></span><span class="day-sum"></span>';
-  head.querySelector('.day-label').textContent = dayLabel(date);
-  head.querySelector('.day-n').textContent = `${dayItems.length}건`;
-  const sum = (t) => dayItems.reduce((n, i) => (i.type === t ? n + i.amount : n), 0);
-  const out = sum('out'), inc = sum('in');
-  const sumEl = head.querySelector('.day-sum');
-  sumEl.textContent = out ? '-' + won(out) : inc ? '+' + won(inc) : '';   // 접어도 보이는 그날 합계 (지출이 없는 날은 수입)
-  sumEl.classList.toggle('in', !out && !!inc);
-  li.appendChild(head);
-  const body = document.createElement('div');
-  body.className = 'day-body';
-  body.inert = !open;   // 접힌 동안은 키보드·화면 읽기에서도 빠진다
-  const ul = document.createElement('ul');
-  dayItems.forEach((i) => ul.appendChild(itemEl(i)));
-  body.appendChild(ul);
-  li.appendChild(body);
-  return li;
+// ---- 내역 목록: 오늘(지난 달을 볼 때는 그 달의 마지막 날) 내역만 펼쳐 두고, 나머지는 '내역 더보기' 창에서 본다 ----
+function pinnedDate(month) {
+  return ym(cur) === today().slice(0, 7) ? today() : month.length ? month[0].date : '';   // month는 최신순
 }
-
-function setDayOpen(block, open) {
-  dayState.set(block.dataset.date, open);
-  block.classList.toggle('open', open);   // 높이는 CSS 전환으로 부드럽게 변한다
-  block.querySelector('.day-head').setAttribute('aria-expanded', String(open));
-  block.querySelector('.day-body').inert = !open;
-}
-function dayBlocks() { return [...document.querySelectorAll('#list .dayblock')]; }
-function updateFoldAll() {
-  const blocks = dayBlocks();
-  const btn = $('fold-all');
-  btn.hidden = tab !== 'list' || listMode !== 'list' || blocks.length < 2;
-  btn.textContent = blocks.every((b) => b.classList.contains('open')) ? '모두 접기' : '모두 펼치기';
-}
-$('list').addEventListener('click', (e) => {
-  const head = e.target.closest('.day-head');
-  if (!head) return;
-  setDayOpen(head.parentElement, !head.parentElement.classList.contains('open'));
-  updateFoldAll();
-});
-$('fold-all').onclick = () => {
-  const blocks = dayBlocks();
-  const open = !blocks.every((b) => b.classList.contains('open'));
-  blocks.forEach((b) => setDayOpen(b, open));
-  updateFoldAll();
-};
-
 function renderList(month) {
   const list = $('list');
   list.innerHTML = '';
-  if (dayStateMonth !== ym(cur)) { dayState.clear(); dayStateMonth = ym(cur); }   // 달을 옮기면 기본 상태로
-  const byDay = new Map();   // month는 최신순이라 날짜 순서가 그대로 유지된다
-  for (const i of month) {
-    if (!byDay.has(i.date)) byDay.set(i.date, []);
-    byDay.get(i.date).push(i);
+  const pin = pinnedDate(month);
+  const rest = month.filter((i) => i.date !== pin);
+  if (month.length) {
+    list.appendChild(dayHead(pin, month));
+    const pinned = month.filter((i) => i.date === pin);
+    if (pinned.length) pinned.forEach((i) => list.appendChild(itemEl(i)));
+    else {
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = '오늘은 아직 내역이 없어요.';
+      list.appendChild(li);
+    }
   }
-  for (const [date, dayItems] of byDay) {
-    if (dayItems.some((i) => freshIds.has(i.id))) dayState.set(date, true);
-    list.appendChild(dayBlock(date, dayItems));
-  }
+  const btn = $('hist-open');
+  btn.hidden = !rest.length;
+  btn.textContent = ym(cur) === today().slice(0, 7) ? '이전 내역 보기' : '다른 날 내역 보기';
   $('empty').hidden = month.length > 0;
 }
+
+// 내역 더보기 창: 오늘(고정으로 보이는 날)을 뺀 그 달의 나머지 내역을 날짜별로 보여 준다
+function renderHistory() {
+  const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
+  const pin = pinnedDate(month);
+  const rest = month.filter((i) => i.date !== pin);
+  const out = rest.filter((i) => i.type === 'out').reduce((s, i) => s + i.amount, 0);
+  $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월 내역`;
+  $('h-sum').textContent = `${rest.length}건${out ? ` · 지출 ${won(out)}` : ''}`;
+  const list = $('h-list');
+  list.innerHTML = '';
+  for (const i of rest) {
+    if (!list.lastDate || list.lastDate !== i.date) { list.lastDate = i.date; list.appendChild(dayHead(i.date, rest)); }
+    list.appendChild(itemEl(i));   // 눌러서 수정·삭제하면 저장 뒤 render()가 이 목록도 다시 그린다
+  }
+  list.lastDate = '';
+  if (!rest.length) $('hdlg').close();
+}
+$('hist-open').onclick = () => { renderHistory(); $('hdlg').showModal(); $('h-list').scrollTop = 0; };
+$('h-close').onclick = () => $('hdlg').close();
 
 function renderCal(month) {
   const y = cur.getFullYear(), m = cur.getMonth();
@@ -284,14 +258,33 @@ function renderCal(month) {
   dayItems.forEach((i) => list.appendChild(itemEl(i)));
 }
 
+let currentPeriodForYear = [];
 // 통계 위쪽의 비교 카드: 지난달(연별은 작년)보다 얼마나 더·덜 썼는지
 function renderCompare(out, yearView, byCat, prevCat) {
   const box = $('cmp');
   const { prev, running } = previousSpending(items, cur, yearView);
   const name = (yearView ? '작년' : '지난달') + (running ? ' 같은 기간' : '');
   const word = yearView ? '올해' : '이번 달';
-  box.hidden = !prev || !out;   // 비교할 지난 기간의 지출이 없으면 보여 주지 않는다
-  if (box.hidden) return;
+  const showMonth = !!prev && !!out;   // 비교할 지난 기간의 지출이 없으면 그 칸은 보여 주지 않는다
+  const showWeek = !yearView;   // 지출이 없는 달도 주별 그래프 카드는 보여 준다
+  $('cmp-s1').hidden = !showMonth;
+  $('cmp-s2').hidden = !showWeek;
+  // 카드 안에서 옆으로 밀어 보는 칸: 그래프(연별은 월별 지출, 월별은 주별 지출)가 먼저, 지난 기간 비교가 다음
+  const n = [yearView, showWeek, showMonth].filter(Boolean).length;
+  box.hidden = n === 0;
+  box.classList.toggle('multi', n > 1);
+  const dots = $('cmp-dots');
+  dots.hidden = n < 2;
+  const kind = `${yearView}|${showWeek}|${showMonth}`;
+  if (dots.dataset.kind !== kind) {   // 보이는 칸이 바뀌면 첫 칸부터 보여 주고 점도 다시 만든다
+    dots.dataset.kind = kind;
+    dots.innerHTML = '<i></i>'.repeat(n);
+    $('cmp-track').scrollLeft = 0;
+    syncCmpDots();
+  }
+  if (showWeek) renderWeekly();
+  if (yearView) renderYearBars(currentPeriodForYear);
+  if (!showMonth) return;
   const diff = out - prev;
   const pct = Math.round((Math.abs(diff) / prev) * 100);
   $('cmp-label').textContent = `${name}보다`;
@@ -309,9 +302,44 @@ function renderCompare(out, yearView, byCat, prevCat) {
   if (pick) top.textContent = `${diff >= 0 ? '가장 많이 늘어난 곳' : '가장 많이 줄어든 곳'}: ${pick[0]} ${pick[1] > 0 ? '▲' : '▼'} ${won(Math.abs(pick[1]))}`;
 }
 
+// 비교 카드의 두 번째 칸: 주별(7일 단위) 지출 꺾은선 그래프. 월간 그래프와 같은 모양이고, 점을 누르면 그 주의 금액이 뜬다
+function renderWeekly() {
+  const weeks = weeklySpending(items, cur);
+  const t = today();
+  const now = ym(cur) === t.slice(0, 7) ? weeks.find((w) => Number(t.slice(8)) >= w.from && Number(t.slice(8)) <= w.to) : null;
+  const top = now || weeks.reduce((a, w) => (w.sum > a.sum ? w : a), weeks[0]);
+  $('wk-label').textContent = '주별 지출 (7일 단위)';
+  const last = now ? now.n - 1 : weeks.length - 1;   // 이번 달이면 이번 주까지만 이어 그린다
+  const box = $('wk-chart');
+  const W = Math.max(200, $('cmp').clientWidth - 36), H = 72, padT = 20, padB = 6;
+  const key = `${ym(cur)}|${W}|${weeks.map((w) => w.sum).join(',')}`;
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.dataset.sel = '';
+  const max = Math.max(...weeks.map((w) => w.sum), 1);
+  const col = W / weeks.length, f = (n) => n.toFixed(1);
+  const pts = weeks.slice(0, last + 1).map((w, k) => [(k + 0.5) * col, padT + (1 - w.sum / max) * (H - padT - padB)]);
+  const line = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(' ');
+  const grid = [0.5, 1].map((g) => { const y = padT + g * (H - padT - padB); return `<line class="yc-grid" x1="0" x2="${W}" y1="${f(y)}" y2="${f(y)}"/>`; }).join('');
+  const hi = top.n - 1;
+  const dots = pts.map(([x, y], k) => `<circle class="yc-dot${k === hi ? ' now' : ''}" cx="${f(x)}" cy="${f(y)}" r="${k === hi ? 5 : 3.5}" style="animation-delay:${350 + k * 60}ms"/>`).join('');
+  const vals = pts.map(([x, y], k) => (k === hi && weeks[k].sum)
+    ? `<text class="yc-val" data-k="${k}" x="${f(x)}" y="${f(y - 10)}" text-anchor="${x < 30 ? 'start' : x > W - 30 ? 'end' : 'middle'}">${won(weeks[k].sum)}</text>` : '').join('');
+  box.innerHTML =
+    `<svg class="yc-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">` +
+    '<defs><linearGradient id="yw-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--primary)" stop-opacity=".30"/><stop offset="1" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>' +
+    grid +
+    `<polygon class="yc-area" points="${f(pts[0][0])},${H} ${line} ${f(pts[pts.length - 1][0])},${H}" fill="url(#yw-fill)"/>` +
+    `<polyline class="yc-line" points="${line}" pathLength="1" fill="none"/>` +
+    dots + vals + '<text class="yc-sel" hidden></text></svg>' +
+    '<div class="yc-cols">' + weeks.map((w, k) =>
+      `<button type="button" data-m="${k}" data-v="${w.sum}" class="${k === hi ? 'now' : ''}${k > last ? ' off' : ''}" aria-label="${w.n}주차"><em>${w.n}주</em></button>`).join('') + '</div>';
+  box._pts = pts;
+}
+
 function renderStats(period, out, yearView) {
   $('year-wrap').hidden = !yearView;
-  if (yearView) renderYearBars(period);
+  currentPeriodForYear = period;
 
   const outs = period.filter((i) => i.type === 'out');
   const byCat = {};
@@ -385,10 +413,11 @@ function renderYearBars(period) {
   const thisYear = today().slice(0, 4) === String(cur.getFullYear());
   const nowM = thisYear ? Number(today().slice(5, 7)) - 1 : -1;
   const last = thisYear ? nowM : 11;   // 올해는 이번 달까지만 이어 그린다 (앞으로 올 달이 0원으로 떨어져 보이지 않게)
-  const W = box.clientWidth || 340, H = 124, padT = 22, padB = 8;
+  const W = box.clientWidth || 340, H = 72, padT = 20, padB = 6;
   const key = `${cur.getFullYear()}|${W}|${months.join(',')}`;
   if (box.dataset.key === key) return;   // 그대로면 다시 그리지 않는다 (카테고리를 눌러도 선이 매번 다시 그려지지 않게)
   box.dataset.key = key;
+  box.dataset.sel = '';
   const max = Math.max(...months, 1);
   const col = W / 12;
   const pts = months.slice(0, last + 1).map((v, k) => [(k + 0.5) * col, padT + (1 - v / max) * (H - padT - padB)]);
@@ -399,16 +428,45 @@ function renderYearBars(period) {
   const grid = [0.33, 0.66, 1].map((g) => { const y = padT + g * (H - padT - padB); return `<line class="yc-grid" x1="0" x2="${W}" y1="${f(y)}" y2="${f(y)}"/>`; }).join('');
   const dots = pts.map(([x, y], k) => `<circle class="yc-dot${k === nowM ? ' now' : ''}" cx="${f(x)}" cy="${f(y)}" r="${k === nowM ? 5 : 3.5}" style="animation-delay:${350 + k * 45}ms"/>`).join('');
   const vals = pts.map(([x, y], k) => (months[k] && (k === nowM || k === topK))
-    ? `<text class="yc-val" x="${f(x)}" y="${f(y - 10)}" text-anchor="middle">${short(months[k])}</text>` : '').join('');
+    ? `<text class="yc-val" data-k="${k}" x="${f(x)}" y="${f(y - 10)}" text-anchor="${x < 30 ? 'start' : x > W - 30 ? 'end' : 'middle'}">${won(months[k])}</text>` : '').join('');
+  const sel = '<text class="yc-sel" hidden></text>';
   box.innerHTML =
     `<svg class="yc-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">` +
     '<defs><linearGradient id="yc-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--primary)" stop-opacity=".30"/><stop offset="1" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>' +
     grid +
     `<polygon class="yc-area" points="${area}" fill="url(#yc-fill)"/>` +
     `<polyline class="yc-line" points="${line}" pathLength="1" fill="none"/>` +
-    dots + vals + '</svg>' +
+    dots + vals + sel + '</svg>' +
     '<div class="yc-cols">' + months.map((v, k) =>
-      `<button type="button" data-m="${k}" class="${k === nowM ? 'now' : ''}${k > last ? ' off' : ''}" aria-label="${k + 1}월"><em>${k + 1}월</em></button>`).join('') + '</div>';
+      `<button type="button" data-m="${k}" data-v="${v}" class="${k === nowM ? 'now' : ''}${k > last ? ' off' : ''}" aria-label="${k + 1}월"><em>${k + 1}월</em></button>`).join('') + '</div>';
+  box._pts = pts;
+}
+
+// 그래프의 점(또는 그 달 칸)을 누르면 그 달의 금액만 점 위에 표시된다. 같은 달을 다시 누르면 표시가 사라진다
+function pickYearMonth(k) { pickPoint($('year-bars'), k); }
+function pickPoint(box, k) {
+  const pts = box._pts;
+  if (!pts || !pts[k]) return;
+  const again = box.dataset.sel === String(k);
+  box.dataset.sel = again ? '' : String(k);
+  box.querySelector('.yc-sel').setAttribute('hidden', '');
+  box.querySelectorAll('.yc-val').forEach((e) => (e.style.opacity = ''));
+  box.querySelectorAll('.yc-dot').forEach((e) => e.classList.remove('sel'));
+  box.querySelectorAll('.yc-cols button').forEach((e) => e.classList.remove('sel'));
+  if (again || box.querySelector(`.yc-val[data-k="${k}"]`)) { box.dataset.sel = ''; return; }   // 이미 금액이 떠 있는 달(주)은 누르면 다른 선택만 지운다
+  const W = box.clientWidth || 340;
+  const [x, y] = pts[k];
+  const t = box.querySelector('.yc-sel');
+  const v = Number(box.querySelector(`button[data-m="${k}"]`).dataset.v);
+  t.textContent = won(v);
+  t.removeAttribute("hidden");
+  t.setAttribute('x', Math.min(W - 6, Math.max(6, x)).toFixed(1));
+  t.setAttribute('y', Math.max(12, y - 12).toFixed(1));
+  const w = t.getComputedTextLength ? t.getComputedTextLength() : 0;   // 가장자리에서는 글자가 잘리지 않게 정렬을 바꾼다
+  t.setAttribute('text-anchor', x - w / 2 < 4 ? 'start' : x + w / 2 > W - 4 ? 'end' : 'middle');
+  box.querySelectorAll('.yc-val').forEach((e) => (e.style.opacity = e.dataset.k === String(k) ? 0 : ''));
+  box.querySelectorAll('.yc-dot').forEach((e, i) => e.classList.toggle('sel', i === k));
+  box.querySelectorAll('.yc-cols button').forEach((e) => e.classList.toggle('sel', e.dataset.m === String(k)));
 }
 
 // 숫자가 이전 값에서 새 값으로 올라가거나 내려가며 바뀐다 (폰의 '애니메이션 줄이기'를 켰으면 바로 바뀐다)
