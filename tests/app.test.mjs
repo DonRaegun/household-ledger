@@ -357,3 +357,9 @@ test('카테고리 자동 분류: 통신·보험은 고정비, 구독 서비스�
   assert.equal(g('KTX 예매'), '기타');   // KT가 들어 있어도 철도 이름은 통신으로 보지 않는다
   assert.equal(g('스타벅스'), '카페');
 });
+
+test('문자 나누기: 도착 시각 줄은 뒤따르는 ●로 시작하는 본문과 한 통으로 둔다', () => {
+  const text = '[알림 2026-11-03 12:31]\n● 테스트카드 이용안내\n테스트승인\n12,000원 일시불\n11/03 12:30\n테스트식당';
+  assert.equal(app.ctx.splitSms(text).length, 1);
+  assert.equal(app.ctx.splitSms(text + '\n[알림 2026-11-03 13:05]\n4,500원 결제\n테스트카드 | 테스트카페(일시불)').length, 2);
+});

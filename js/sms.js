@@ -24,7 +24,9 @@ function splitSms(text) {
   let cur = [];
   for (const line of text.replace(/\r/g, '').split('\n')) {
     const startsAlert = ALERT_LINE.test(line) && cur.some((l) => l.trim());
-    if (startsAlert || (SMS_START.test(line) && SMS_WHEN.test(cur.join('\n')))) { blocks.push(cur.join('\n')); cur = []; }
+    // 도착 시각 줄("[알림 2026-11-25 12:31]")의 날짜·시각은 문자 본문의 시각으로 보지 않는다 (안 그러면 그 줄만 따로 한 통으로 잘려 '읽지 못한 문자'가 된다)
+    const hasBody = cur.some((l) => !ALERT_LINE.test(l) && SMS_WHEN.test(l));
+    if (startsAlert || (SMS_START.test(line) && hasBody)) { blocks.push(cur.join('\n')); cur = []; }
     cur.push(line);
   }
   if (cur.length) blocks.push(cur.join('\n'));
