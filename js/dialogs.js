@@ -160,7 +160,7 @@ $('mp-today').onclick = () => { cur = new Date(); cur.setDate(1); selCat = null;
 $('mp-close').onclick = () => $('mdlg').close();
 
 // 카테고리는 드롭다운 대신 버튼으로 모두 보여 줘서 한 번에 고른다 (값은 숨은 select가 들고 있다). 내역 추가와 고정지출 창이 같이 쓴다
-const CHIPS_OF = { category: 'cat-chips', fcategory: 'fcat-chips' };   // select id -> 버튼 묶음 id
+const CHIPS_OF = { category: 'cat-chips' };   // select id -> 버튼 묶음 id
 function fillCategories(id, type, selected) {
   $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
   if (selected) $(id).value = selected;

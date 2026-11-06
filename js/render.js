@@ -2,8 +2,10 @@
 function itemEl(i) {
   const li = document.createElement('li');
   li.className = 'item' + (freshIds.has(i.id) ? ' fresh' : '');   // 방금 들어온 내역은 잠깐 반짝인다
-  li.innerHTML = `<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
-  li.querySelector('.dot').style.background = color(i.category);
+  li.innerHTML = `<span class="ico"></span><div class="body"><div class="cat"><span></span></div><div class="memo"></div></div><div class="amt ${i.type}"></div>`;
+  const ico = li.querySelector('.ico');
+  ico.innerHTML = catIcon(i.category);
+  ico.style.setProperty('--c', color(i.category));
   // 제목은 가맹점·메모(없으면 카테고리). 알림으로 들어온 내역은 카테고리가 대부분 '기타'라서 메모가 더 알아보기 쉽다
   li.querySelector('.cat span').textContent = i.memo || i.category;
   const memo = li.querySelector('.memo');
@@ -347,32 +349,56 @@ function renderStats(period, out, yearView) {
   const prevCat = previousByCategory(items, cur, yearView);
   const hasPrev = Object.keys(prevCat).length > 0;   // 비교할 지난 기간의 지출이 없으면 증감을 보여 주지 않는다
   renderCompare(out, yearView, byCat, prevCat);
-  const rows = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
-  if (selCat && !byCat[selCat]) selCat = null;
+  // 통계는 큰 카테고리(묶음)로 보여 주고, 고른 묶음 아래에 작은 카테고리를 펼친다
+  const byGroup = {}, prevGroup = {};
+  for (const [c, a] of Object.entries(byCat)) byGroup[groupOf(c)] = (byGroup[groupOf(c)] || 0) + a;
+  for (const [c, a] of Object.entries(prevCat)) prevGroup[groupOf(c)] = (prevGroup[groupOf(c)] || 0) + a;
+  const rows = Object.entries(byGroup).sort((a, b) => b[1] - a[1]);
+  if (selCat && !byGroup[selCat]) selCat = null;
+  // 지난 기간 대비 증감 (같은 날짜 기준으로 맞춘 값)
+  const setDelta = (dl, amt, prev) => {
+    const diff = amt - (prev || 0);
+    dl.hidden = !hasPrev || diff === 0;
+    if (!dl.hidden) {
+      dl.className = 'delta ' + (prev === undefined ? 'new' : diff > 0 ? 'up' : 'down');
+      dl.textContent = prev === undefined ? '새로 생겼어요' : `${diff > 0 ? '▲' : '▼'} ${won(Math.abs(diff))}`;
+    }
+  };
 
   const stats = $('stats');
   stats.innerHTML = '';
   if (!rows.length) stats.innerHTML = '<li class="plain">지출 내역이 없어요.</li>';
-  // 도넛에서 고른 카테고리는 선택된 동안만 목록 맨 위로 올려서, 아래로 스크롤하지 않아도 바로 보이게 한다
+  // 도넛에서 고른 묶음은 선택된 동안만 목록 맨 위로 올려서, 아래로 스크롤하지 않아도 바로 보이게 한다
   const ordered = selCat ? [rows.find(([c]) => c === selCat), ...rows.filter(([c]) => c !== selCat)] : rows;
   for (const [cat, amt] of ordered) {
     const li = document.createElement('li');
     li.dataset.cat = cat;
     if (cat === selCat) li.classList.add('sel');
     li.innerHTML = '<div class="top"><span class="name"><i class="dot"></i><em></em></span><span class="r"><b></b><small class="delta"></small></span></div><div class="bar"><i></i></div>';
-    li.querySelector('.dot').style.background = color(cat);
+    li.querySelector('.dot').style.background = groupColor(cat);
     li.querySelector('em').textContent = `${cat} (${Math.round((amt / out) * 100)}%)`;
     li.querySelector('b').textContent = won(amt);
-    const dl = li.querySelector('.delta');   // 지난 기간 대비 증감 (같은 날짜 기준으로 맞춘 값)
-    const diff = amt - (prevCat[cat] || 0);
-    dl.hidden = !hasPrev || diff === 0;
-    if (!dl.hidden) {
-      dl.className = 'delta ' + (prevCat[cat] === undefined ? 'new' : diff > 0 ? 'up' : 'down');
-      dl.textContent = prevCat[cat] === undefined ? '새로 생겼어요' : `${diff > 0 ? '▲' : '▼'} ${won(Math.abs(diff))}`;
-    }
+    setDelta(li.querySelector('.delta'), amt, prevGroup[cat]);
     const bar = li.querySelector('.bar i');
     bar.style.width = (amt / rows[0][1]) * 100 + '%';
-    bar.style.background = color(cat);
+    bar.style.background = groupColor(cat);
+    const subs = Object.entries(byCat).filter(([c]) => groupOf(c) === cat).sort((a, b) => b[1] - a[1]);
+    if (cat === selCat && subs.length) {   // 고른 묶음의 작은 카테고리를 보여 준다 (하나뿐이어도, 묶음과 이름이 같아도 보여 준다)
+      const ul = document.createElement('ul');
+      ul.className = 'subs';
+      for (const [c, a] of subs) {
+        const s = document.createElement('li');
+        s.innerHTML = '<span class="ico"></span><em></em><span class="r"><b></b><small class="delta"></small></span>';
+        s.querySelector('.ico').innerHTML = catIcon(c);
+        s.querySelector('.ico').style.setProperty('--c', groupColor(cat));
+        s.querySelector('em').textContent = `${c} (${Math.round((a / amt) * 100)}%)`;
+        s.querySelector('b').textContent = won(a);
+        setDelta(s.querySelector('.delta'), a, prevCat[c]);
+        ul.appendChild(s);
+      }
+      li.appendChild(ul);
+      playIn(ul, 'fade-in');
+    }
     stats.appendChild(li);
   }
   renderDonut(rows, out);
@@ -515,7 +541,7 @@ function renderDonut(rows, total) {
   if (!donutEls.size) svg.innerHTML = '';   // 비어 있을 때 보이던 회색 원을 치운다
   let start = 0;
   const target = rows.map(([cat, amt]) => {
-    const a = { cat, start, len: (amt / total) * DONUT_C, color: color(cat) };
+    const a = { cat, start, len: (amt / total) * DONUT_C, color: groupColor(cat) };
     start += a.len;
     return a;
   });

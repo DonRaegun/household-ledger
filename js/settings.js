@@ -87,8 +87,9 @@ function fillFixedList(list, rows) {
   for (const f of rows) {
     const li = document.createElement('li');
     li.className = 'item';
-    li.innerHTML = '<div><div class="cat"><i class="dot"></i><span></span></div><div class="memo"></div></div><div class="amt out"></div>';
-    li.querySelector('.dot').style.background = color(f.category);
+    li.innerHTML = '<span class="ico"></span><div class="body"><div class="cat"><span></span></div><div class="memo"></div></div><div class="amt out"></div>';
+    li.querySelector('.ico').innerHTML = catIcon(f.category);
+    li.querySelector('.ico').style.setProperty('--c', color(f.category));
     li.querySelector('.cat span').textContent = f.name;
     li.querySelector('.memo').textContent = [`매달 ${f.day}일`, f.category, PAY[f.pay], MOODS[f.mood]].filter(Boolean).join(' · ');
     li.querySelector('.amt').textContent = won(f.amount);
@@ -114,17 +115,29 @@ function setFday(d) {
 }
 $('fday-btn').onclick = () => openDayPicker(Number($('fday').value), setFday);
 
+// 고정지출은 '고정비'(월세·통신·보험 등)와 '구독'(넷플릭스 등) 둘 중 하나로 고른다. 구독은 문화/여가, 고정비는 고정비 카테고리로 들어간다
+const FKIND = {
+  fixed: { category: '고정비', hint: '월세, 통신비, 보험료처럼 꼭 내야 하는 돈이에요. 고정비로 들어가요.' },
+  sub: { category: '문화/여가', hint: '넷플릭스, 유튜브처럼 해지할 수 있는 서비스예요. 문화/여가로 들어가고 구독 목록에 모여요.' },
+};
+let fKindOf = 'fixed', fFromCategory = null;   // 열었을 때의 종류와 카테고리 (종류를 안 바꾸면 원래 카테고리를 그대로 둔다)
+const fKind = () => document.querySelector('input[name=fkind]:checked').value;
+function showFkindHint() { $('fkind-hint').textContent = FKIND[fKind()].hint; }
+document.querySelectorAll('input[name=fkind]').forEach((r) => r.addEventListener('change', showFkindHint));
+
 function openFixed(f) {
   fEditing = f || null;
   $('fdlg-title').textContent = f ? '고정지출 수정' : '고정지출 추가';
   $('fdel').hidden = !f;
-  fillCategories('fcategory', 'out', f && f.category);
+  fKindOf = f && f.sub ? 'sub' : 'fixed';
+  fFromCategory = f ? f.category : null;
+  document.querySelectorAll('input[name=fkind]').forEach((r) => (r.checked = r.value === fKindOf));
+  showFkindHint();
   $('fname').value = f ? f.name : '';
   $('famount').value = f ? f.amount.toLocaleString('ko-KR') : '';
   $('famount').refreshRead();
   document.querySelector(`input[name=fpay][value=${f ? f.pay : settings.lastPay}]`).checked = true;
   setFday(f ? f.day : new Date().getDate());
-  $('fsub').checked = !!(f && f.sub);
   const fm = f ? f.mood || '' : 'need';   // 새 고정지출은 '필수'가 기본
   document.querySelectorAll('input[name=fmood]').forEach((r) => (r.checked = r.value === fm));
   openWithFocus($('fdlg'), f ? null : $('fname'));
@@ -136,10 +149,10 @@ $('fform').addEventListener('submit', () => {
   const name = $('fname').value.trim();
   if (!amount || !name) return;
   const data = {
-    name, amount, category: $('fcategory').value,
+    name, amount, category: fKind() === fKindOf && fFromCategory ? fFromCategory : FKIND[fKind()].category,
     pay: document.querySelector('input[name=fpay]:checked').value,
     day: Number($('fday').value),
-    sub: $('fsub').checked,
+    sub: fKind() === 'sub',
     mood: document.querySelector('input[name=fmood]:checked').value || undefined,
   };
   if (fEditing) Object.assign(fEditing, data);

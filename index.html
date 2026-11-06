@@ -318,8 +318,11 @@
       <span class="unit" aria-hidden="true">원</span>
     </div>
     <p class="won-read" id="famount-read" aria-live="polite"></p>
-    <select id="fcategory" hidden></select>
-    <div id="fcat-chips" class="chips" role="radiogroup" aria-label="카테고리"></div>
+    <div class="seg" id="fkind-seg">
+      <label><input type="radio" name="fkind" value="fixed" checked><span>고정비</span></label>
+      <label><input type="radio" name="fkind" value="sub"><span>구독</span></label>
+    </div>
+    <p class="hint" id="fkind-hint"></p>
     <div class="seg">
       <label><input type="radio" name="fpay" value="cash"><span>현금</span></label>
       <label><input type="radio" name="fpay" value="card" checked><span>카드</span></label>
@@ -334,10 +337,6 @@
     </div>
     <input id="fday" type="hidden">
     <button type="button" class="pick-btn" id="fday-btn" aria-label="매달 며칠"></button>
-    <label class="switch-row sub-row">
-      <span class="sw-text">구독 서비스예요<small>구독 목록에 모아서 보여줘요</small></span>
-      <span class="switch"><input id="fsub" type="checkbox" role="switch"><i></i></span>
-    </label>
     <div class="row">
       <button type="button" id="fdel" class="danger" hidden>삭제</button>
       <button type="button" id="fcancel">취소</button>

@@ -344,3 +344,15 @@ test('주별 지출: 한 달을 7일씩 끊어 지출만 더한다', () => {
   const m = Array.from(app.run('weeklySpending([], new Date(2026, 0, 1))'));
   assert.deepEqual([m.length, m[4].from, m[4].to], [5, 29, 31]);   // 31일인 달은 5주, 마지막 주는 말일까지
 });
+
+test('카테고리 합치기: 주거/통신·보험은 고정비로 옮기고, 색도 옛 이름으로 찾아진다 (불러오기 쪽은 화면 코드라 브라우저에서 확인)', () => {
+  assert.deepEqual(['쇼핑', '문화/여가', '주거/통신', '보험', '식비'].map((c) => app.run(`catName('${c}')`)), ['쇼핑', '문화/여가', '고정비', '고정비', '식비']);
+  assert.equal(app.run("color('보험')"), app.run("color('고정비')"));
+});
+test('카테고리 자동 분류: 통신·보험은 고정비, 구독·영화는 문화/여가, 쇼핑몰은 쇼핑', () => {
+  const g = (m) => app.run(`guessCategory('${m}')`);
+  assert.deepEqual(['SK텔레콤', '삼성화재', '테스트 월세', 'KT'].map(g), ['고정비', '고정비', '고정비', '고정비']);
+  assert.deepEqual(['넷플릭스', '롯데시네마', '쿠팡'].map(g), ['문화/여가', '문화/여가', '쇼핑']);
+  assert.equal(g('KTX 예매'), '기타');   // KT가 들어 있어도 철도 이름은 통신으로 보지 않는다
+  assert.equal(g('스타벅스'), '카페');
+});

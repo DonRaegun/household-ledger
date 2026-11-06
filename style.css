@@ -96,7 +96,7 @@ li.day .day-sum { font-size: 12px; font-variant-numeric: tabular-nums; }
   background: var(--card); padding: 12px 15px; border-radius: 16px; margin-bottom: 7px;
   border: 1px solid var(--line); box-shadow: var(--elev);
 }
-.item > div:first-child { min-width: 0; flex: 1; }
+.item > .body { min-width: 0; flex: 1; }
 .item .cat { font-weight: 600; }
 .item .cat span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .memo { font-size: 13px; color: var(--sub); margin-top: 1px; }
@@ -657,3 +657,12 @@ h2 { line-height: 1.4; }
 #xdlg .wide { flex: none; margin-top: 8px; background: var(--bg); }
 #upcoming { cursor: pointer; }
 #upcoming b::after { content: ' ›'; color: var(--sub); font-weight: 400; }
+
+/* ---- 카테고리 아이콘(내역·고정지출·통계 작은 카테고리)과 통계의 펼침 ---- */
+.ico { flex: none; display: grid; place-items: center; width: 38px; height: 38px; margin-right: 12px; border-radius: 12px; color: var(--c, var(--sub)); background: color-mix(in srgb, var(--c, var(--sub)) 16%, transparent); }
+#stats .subs { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
+#stats .subs li { display: flex; align-items: center; background: none; border: 0; border-radius: 0; padding: 8px 0 0; margin: 0; box-shadow: none; }
+#stats .subs .ico { width: 30px; height: 30px; margin-right: 10px; border-radius: 10px; }
+#stats .subs .ico svg { width: 17px; height: 17px; }
+#stats .subs em { flex: 1; font-size: 14px; }
+#stats .subs b { font-size: 14px; }

@@ -1,16 +1,41 @@
 // 공통: 상수, 값 형식, 날짜·금액 도우미
 const CATEGORIES = {
-  out: ['식비', '카페', '교통', '쇼핑', '주거/통신', '의료', '보험', '문화/여가', '경조사', '기타'],
+  out: ['식비', '카페', '교통', '쇼핑', '문화/여가', '고정비', '의료', '경조사', '기타'],
   in: ['급여', '용돈', '부수입', '기타'],
 };
-const COLORS = {
-  '식비': '#f59e0b', '카페': '#a16207', '교통': '#3b82f6', '쇼핑': '#ec4899',
-  '주거/통신': '#14b8a6', '의료': '#ef4444', '보험': '#6366f1', '문화/여가': '#8b5cf6', '경조사': '#84cc16',
-  '급여': '#16a34a', '용돈': '#06b6d4', '부수입': '#65a30d', '기타': '#94a3b8',
+// 예전 이름 -> 지금 이름 (주거/통신·보험은 '고정비'로 합쳤다. '쇼핑/여가'는 개발 중에만 있던 이름이라 '쇼핑'으로 되돌린다). 옛 데이터와 백업 파일을 읽을 때 바꾼다
+const CAT_RENAME = { '주거/통신': '고정비', '보험': '고정비', '쇼핑/여가': '쇼핑' };
+const catName = (c) => CAT_RENAME[c] || c;
+// 큰 카테고리(묶음): 통계에는 이 묶음으로 보여 주고, 누르면 안의 작은 카테고리가 나온다. 색은 묶음마다 하나라서 통계가 알록달록하지 않다
+const GROUPS = [
+  { name: '먹고 마시기', cats: ['식비', '카페'], color: '#f2a65a' },
+  { name: '교통', cats: ['교통'], color: '#5b9bf0' },
+  { name: '쇼핑/여가', cats: ['쇼핑', '문화/여가'], color: '#e585b5' },
+  { name: '고정비', cats: ['고정비'], color: '#4fbfae' },
+  { name: '기타', cats: ['의료', '경조사', '기타'], color: '#8e99ad' },   // 의료·경조사처럼 자주 쓰지 않는 것은 기타 안에 모은다
+];
+const groupOf = (c) => (GROUPS.find((g) => g.cats.includes(catName(c))) || GROUPS[GROUPS.length - 1]).name;
+const groupColor = (name) => (GROUPS.find((g) => g.name === name) || GROUPS[GROUPS.length - 1]).color;
+const IN_COLORS = { '급여': '#4cc38a', '용돈': '#5cc6de', '부수입': '#8fcf6e' };   // 수입 카테고리 색 (통계에는 나오지 않는다)
+// 카테고리 아이콘: 모두 다르게. 선 모양이라 색은 묶음 색을 따라간다 (24x24)
+const ICONS = {
+  '식비': '<path d="M5 3v5a3 3 0 0 0 6 0V3M8 3v6M8 11v10"/><path d="M16 21V3c2.5 1.5 4 4.5 4 8h-4"/>',
+  '카페': '<path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9z"/><path d="M16 10h2a2.5 2.5 0 0 1 0 5h-2M8 3v2M12 3v2"/>',
+  '교통': '<rect x="4" y="4" width="16" height="13" rx="3"/><path d="M4 11h16M8 17v3M16 17v3"/><circle cx="8" cy="14" r=".7"/><circle cx="16" cy="14" r=".7"/>',
+  '쇼핑': '<path d="M5 8h14l-1 12H6L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  '문화/여가': '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/>',
+  '고정비': '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10M10 20v-5h4v5"/>',
+  '의료': '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>',
+  '경조사': '<rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M4 13h16M12 9v11M12 9C10 5 6 6 7 9c.5 1 3 1 5 0zM12 9c2-4 6-3 5 0-.5 1-3 1-5 0z"/>',
+  '기타': '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>',
+  '급여': '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  '용돈': '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h4a1.5 1.5 0 0 1 0 3h-3"/>',
+  '부수입': '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
 };
+const catIcon = (c) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[catName(c)] || ICONS['기타']}</svg>`;
 const PAY = { cash: '현금', card: '카드', transfer: '계좌이체' };
 const MOODS = { need: '필수', want: '선택', regret: '후회' };
-const color = (c) => COLORS[c] || COLORS['기타'];
+const color = (c) => IN_COLORS[c] || groupColor(groupOf(c));
 const KEY = 'ledger.v1';
 const SKEY = 'ledger.settings.v1';
 const $ = (id) => document.getElementById(id);

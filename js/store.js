@@ -56,7 +56,15 @@ function persist(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); return true; }
   catch { warnStorage(); return false; }
 }
-function load() { return readJson(KEY, Array.isArray) || []; }
+function load() {
+  const list = readJson(KEY, Array.isArray) || [];
+  let moved = false;
+  for (const i of list) {   // 합친 카테고리 이름으로 옮긴다 (한 번 옮기면 저장해서 다음부터는 필요 없다)
+    if (i && i.type === 'out' && CAT_RENAME[i.category]) { i.category = CAT_RENAME[i.category]; moved = true; }
+  }
+  if (moved) persist(KEY, list);
+  return list;
+}
 function save() { return persist(KEY, items); }
 
 // 백업 파일이나 설정에서 온 값은 형식을 확인하고, 맞지 않으면 버리거나 안전한 값으로 바꾼다
@@ -67,7 +75,7 @@ function cleanItem(i, n) {
   const out = {
     id: Number.isFinite(Number(i.id)) ? Number(i.id) : Date.now() + n,
     type: i.type, amount: Math.round(amount), date: i.date,
-    category: CATEGORIES[i.type].includes(i.category) ? i.category : '기타',
+    category: CATEGORIES[i.type].includes(i.type === 'out' ? catName(i.category) : i.category) ? (i.type === 'out' ? catName(i.category) : i.category) : '기타',
     memo: typeof i.memo === 'string' ? i.memo.slice(0, 200) : '',
   };
   if (PAY[i.pay]) out.pay = i.pay;
@@ -84,7 +92,7 @@ function cleanFixed(f) {
   if (!Number.isFinite(amount) || amount <= 0 || !(day >= 1 && day <= 31) || !MONTH_RE.test(f.since)) return null;
   const out = {
     id: f.id.slice(0, 40), name: f.name.slice(0, 60), amount: Math.round(amount), day, since: f.since,
-    category: CATEGORIES.out.includes(f.category) ? f.category : '기타', pay: PAY[f.pay] ? f.pay : 'card', sub: !!f.sub,
+    category: CATEGORIES.out.includes(catName(f.category)) ? catName(f.category) : '기타', pay: PAY[f.pay] ? f.pay : 'card', sub: !!f.sub,
   };
   if (MOODS[f.mood]) out.mood = f.mood;
   return out;
