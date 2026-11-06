@@ -1,19 +1,16 @@
 // 설정 탭과 고정지출 창
 // ---- 설정 탭 ----
-function dayOptions(first) {
-  return (first ? `<option value="">${first}</option>` : '') +
-    Array.from({ length: 31 }, (_, k) => `<option value="${k + 1}">${k + 1}일</option>`).join('');
-}
-$('card-day').innerHTML = dayOptions('설정 안 함');
-$('card-start').innerHTML = dayOptions();
-$('card-day').onchange = (e) => {
-  settings.cardDay = Number(e.target.value) || null;
-  saveSettings(); render();
-};
-$('card-start').onchange = (e) => {
-  settings.cardStart = Number(e.target.value) || 1;
-  saveSettings(); render();
-};
+// 카드 결제일·사용 기간 시작일: 드롭다운 대신 버튼으로 보여 주고, 누르면 돌려서 고르는 창이 열린다
+const dayLabels = () => Array.from({ length: 31 }, (_, k) => `${k + 1}일`);
+const REMIND_LABELS = ['당일 오전 9시', '1일 전 오전 9시', '2일 전 오전 9시', '3일 전 오전 9시'];
+$('card-day-btn').onclick = () => openOptionPicker({
+  title: '카드 결제일', labels: ['설정 안 함', ...dayLabels()], index: settings.cardDay || 0,
+  done: (i) => { settings.cardDay = i || null; saveSettings(); render(); },
+});
+$('card-start-btn').onclick = () => openOptionPicker({
+  title: '사용 기간 시작일', labels: dayLabels(), index: settings.cardStart - 1,
+  done: (i) => { settings.cardStart = i + 1; saveSettings(); render(); },
+});
 
 // ---- 화면 모드 (자동 / 밝게 / 어둡게) ----
 const THEME_COLOR = { light: '#f4f5f0', dark: '#0a0c13' };
@@ -54,11 +51,11 @@ function renderSettings() {
   renderNpLast();
   renderAutoBackup();
   $('auto-apply').checked = settings.autoApply;
-  $('remind-days').value = settings.remindDays;
+  $('remind-days-btn').textContent = REMIND_LABELS[settings.remindDays];
   $('ics-card').disabled = !settings.cardDay;
   $('ics-fixed').disabled = !settings.fixed.length;
-  $('card-day').value = settings.cardDay || '';
-  $('card-start').value = settings.cardStart;
+  $('card-day-btn').textContent = settings.cardDay ? `매달 ${settings.cardDay}일` : '설정 안 함';
+  $('card-start-btn').textContent = `${settings.cardStart}일`;
   const s = settings.cardStart;
   $('card-hint').textContent = s === 1
     ? '매달 1일~말일에 쓴 금액이 다음 달 결제일에 출금되는 카드예요.'

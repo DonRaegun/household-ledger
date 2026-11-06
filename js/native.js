@@ -99,6 +99,9 @@ async function refreshNp() {
     $('np-state').textContent = npEnabled ? '켜져 있어요' : '꺼져 있어요';
     $('np-state').className = npEnabled ? 'on' : 'off';
     $('np-open').textContent = npEnabled ? '설정 열기' : '알림 접근 켜기';
+    // 알림 접근이 꺼져 있으면 자동으로 넣을 알림이 오지 않으니, 스위치를 흐리게 하고 먼저 켜라고 알린다
+    $('auto-apply').disabled = !npEnabled;
+    $('auto-note').hidden = npEnabled;
   } catch { /* 무시 */ }
   render();
 }

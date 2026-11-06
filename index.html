@@ -115,21 +115,30 @@
           <button type="button" id="np-open">알림 접근 켜기</button>
         </div>
         <p class="hint np-last" id="np-last" hidden></p>
-        <label class="check auto-row"><input id="auto-apply" type="checkbox"> 확인 없이 자동으로 가계부에 넣기</label>
-        <p class="hint">읽힌 <b>새 결제·입출금</b>만 자동으로 넣고, 넣은 직후에는 "되돌리기"로 지울 수 있어요.</p>
         <details class="more">
           <summary>자세히 보기</summary>
-          <p class="hint">금액, 가맹점, 날짜·시각이 모두 읽힌 새 결제만 자동으로 넣어요. 취소이거나 하나라도 불확실한 알림은 확인을 받아요. 자동으로 들어간 내역에는 "자동" 표시가 붙고, 눌러서 고치면 표시가 사라져요.</p>
           <p class="hint">켜면 문자와 카드·은행 앱의 <b>결제·입출금 알림만</b> 골라서 이 앱에 모아 둬요. 입금은 수입, 출금은 지출(계좌이체)로 넣어요. 카드대금처럼 카드 사용 내역과 겹칠 수 있는 출금은 확인을 받아요. 그 밖의 알림은 저장하지 않고 버리고, 카드·계좌 번호와 가려진 이름도 저장 전에 지워요. 모아 둔 알림은 앱에서 확인한 뒤에만 가계부에 들어가요.</p>
           <p class="hint">갤럭시에서 알림이 안 모이면 "배터리 → 절전 제외 앱"에 이 앱을 추가해 주세요.</p>
+        </details>
+      </div>
+      <div class="panel np-auto">
+        <label class="switch-row">
+          <span class="sw-text">확인 없이 자동으로 가계부에 넣기</span>
+          <span class="switch"><input id="auto-apply" type="checkbox" role="switch"><i></i></span>
+        </label>
+        <p class="hint" id="auto-note" hidden>알림 접근을 먼저 켜 주세요.</p>
+        <details class="more">
+          <summary>자세히 보기</summary>
+          <p class="hint">읽힌 <b>새 결제·입출금</b>만 자동으로 넣고, 넣은 직후에는 "되돌리기"로 지울 수 있어요.</p>
+          <p class="hint">금액, 가맹점, 날짜·시각이 모두 읽힌 새 결제만 자동으로 넣어요. 취소이거나 하나라도 불확실한 알림은 확인을 받아요. 자동으로 들어간 내역에는 "자동" 표시가 붙고, 눌러서 고치면 표시가 사라져요.</p>
         </details>
       </div>
     </div>
 
     <h2>카드와 고정지출</h2>
     <div class="panel">
-      <label class="field">결제일 <select id="card-day"></select></label>
-      <label class="field">사용 기간 시작일 <select id="card-start"></select></label>
+      <div class="field">결제일 <button type="button" class="pick-btn" id="card-day-btn"></button></div>
+      <div class="field">사용 기간 시작일 <button type="button" class="pick-btn" id="card-start-btn"></button></div>
       <p class="hint" id="card-hint"></p>
     </div>
 
@@ -142,14 +151,7 @@
 
     <details class="panel fold">
       <summary>캘린더에 알림 추가</summary>
-      <label class="field">알림 시점
-        <select id="remind-days">
-          <option value="0">당일 오전 9시</option>
-          <option value="1">1일 전 오전 9시</option>
-          <option value="2">2일 전 오전 9시</option>
-          <option value="3">3일 전 오전 9시</option>
-        </select>
-      </label>
+      <div class="field">알림 시점 <button type="button" class="pick-btn" id="remind-days-btn"></button></div>
       <div class="row">
         <button id="ics-card">카드 출금일 알림</button>
         <button id="ics-fixed">고정지출 알림</button>
@@ -160,7 +162,10 @@
     <h2>데이터 관리</h2>
     <div id="backup-tip" hidden></div>
     <div id="ab-section" class="panel" hidden>
-      <label class="check auto-row"><input id="auto-backup" type="checkbox"> 일주일마다 백업 파일 자동 저장</label>
+      <label class="switch-row">
+        <span class="sw-text">일주일마다 백업 파일 자동 저장</span>
+        <span class="switch"><input id="auto-backup" type="checkbox" role="switch"><i></i></span>
+      </label>
       <p class="hint" id="ab-last"></p>
       <details class="more">
         <summary>자세히 보기</summary>
@@ -181,9 +186,9 @@
           <span>새 버전이 있는지 확인해요</span>
           <button type="button" id="update-check">업데이트 확인</button>
         </div>
-        <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요.</p>
         <details class="more">
           <summary>자세히 보기</summary>
+          <p class="hint">앱을 열 때 하루에 한 번 자동으로 확인해요. 내 내역은 보내지 않아요.</p>
           <p class="hint">이 앱의 공개 릴리스 페이지만 확인해요. 새 버전은 내려받은 뒤 설치 화면에서 "설치"를 눌러야 바뀌어요.</p>
         </details>
       </div>
@@ -297,7 +302,10 @@
     </div>
     <input id="fday" type="hidden">
     <button type="button" class="pick-btn" id="fday-btn" aria-label="매달 며칠"></button>
-    <label class="check"><input id="fsub" type="checkbox"> 구독 서비스예요 (구독 목록에 모아서 보여줘요)</label>
+    <label class="switch-row sub-row">
+      <span class="sw-text">구독 서비스예요<small>구독 목록에 모아서 보여줘요</small></span>
+      <span class="switch"><input id="fsub" type="checkbox" role="switch"><i></i></span>
+    </label>
     <div class="row">
       <button type="button" id="fdel" class="danger" hidden>삭제</button>
       <button type="button" id="fcancel">취소</button>

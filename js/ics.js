@@ -62,10 +62,10 @@ function fixedEvents() {
     desc: `${dueText(due)} ${f.name} (${f.category}${PAY[f.pay] ? ', ' + PAY[f.pay] : ''}) - 매달 ${f.day}일`,
   })));
 }
-$('remind-days').onchange = (e) => {
-  settings.remindDays = Number(e.target.value);
-  saveSettings();
-};
+$('remind-days-btn').onclick = () => openOptionPicker({
+  title: '알림 시점', labels: REMIND_LABELS, index: settings.remindDays,
+  done: (i) => { settings.remindDays = i; saveSettings(); renderSettings(); },
+});
 $('ics-card').onclick = () => {
   if (settings.cardDay) download('가계부-카드출금알림.ics', buildIcs(cardEvents()), 'text/calendar;charset=utf-8');
 };

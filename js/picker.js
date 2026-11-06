@@ -108,3 +108,8 @@ function openDayPicker(day, done) {
     done: ([i]) => done(i + 1),
   });
 }
+
+// 목록에서 하나 고르기 (카드 결제일, 알림 시점처럼): done(고른 순서)
+function openOptionPicker({ title, labels, index, hint = '', done }) {
+  openPicker({ title, hint, cols: [{ name: title, labels, index }], done: ([i]) => done(i) });
+}
