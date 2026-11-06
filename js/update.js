@@ -6,6 +6,9 @@ const AU = window.Capacitor && window.Capacitor.isNativePlatform && window.Capac
 const UKEY = 'ledger.updateCheck.v1';
 const UPDATE_GAP_MS = 12 * 3600 * 1000;
 let updating = false;
+let appVersion = '';   // 지금 깔린 버전 이름 (예: 2.14)
+const versionOf = (name) => String(name || '').replace(/^\s*가계부\s*/, '').trim();   // 릴리스 이름 '가계부 2.15' -> '2.15'
+function showVersion() { $('au-version').textContent = appVersion ? `현재 버전 ${appVersion}` : ''; }
 let waitingInstall = '';   // '이 출처 허용'을 켜러 설정에 간 동안 기억해 두는 내려받을 주소
 
 // 내려받아서 설치 화면을 연다. 처음 한 번은 설치 허용을 켜야 해서 폰의 설정 화면이 열리는데,
@@ -47,10 +50,12 @@ async function checkUpdate({ manual = false } = {}) {
   try {
     const r = await AU.check();
     try { localStorage.setItem(UKEY, String(Date.now())); } catch { /* 무시 */ }
-    if (!r.available) { if (manual) showToast('update', [], { title: () => '최신 버전이에요', detail: ' ' }); return; }
+    if (r.currentName) { appVersion = r.currentName; showVersion(); }
+    const latestName = versionOf(r.name);
+    if (!r.available) { if (manual) showToast('update', [], { title: () => `최신 버전이에요${appVersion ? ` (${appVersion})` : ''}`, detail: ' ' }); return; }
     const notes = (r.notes || '').trim().split('\n')[0].slice(0, 80);
     // 설치 도중 구글 Play 보호가 '앱 검사' 같은 확인 창을 띄울 수 있다. 그걸 닫거나 오래 두면 설치가 실패하므로 미리 알린다
-    const ok = await ask(`새 버전이 있어요${notes ? `\n${notes}` : ''}\n지금 업데이트할까요? 내역은 그대로 남아요.\n설치 중에 Play 보호가 검사를 물으면 "검사"나 "확인"을 눌러 주세요.`, { yes: '업데이트', no: '나중에' });
+    const ok = await ask(`새 버전이 있어요${appVersion && latestName ? ` (${appVersion} → ${latestName})` : ''}${notes ? `\n${notes}` : ''}\n지금 업데이트할까요? 내역은 그대로 남아요.\n설치 중에 Play 보호가 검사를 물으면 "검사"나 "확인"을 눌러 주세요.`, { yes: '업데이트', no: '나중에' });
     if (!ok) return;
     if (btn) { btn.disabled = false; btn.textContent = '업데이트 확인'; }   // 설치 화면이 뜨는 동안 버튼이 '확인 중…'으로 남지 않게
     await installUpdate(r.url);
@@ -62,6 +67,7 @@ async function checkUpdate({ manual = false } = {}) {
   }
 }
 $('au-section').hidden = !AU;
+if (AU) AU.version().then((v) => { appVersion = v.name || ''; showVersion(); }).catch(() => { /* 버전을 못 읽어도 업데이트 확인은 된다 */ });
 $('update-check').onclick = () => checkUpdate({ manual: true });
 $('auto-apply').onchange = (e) => {
   settings.autoApply = e.target.checked;

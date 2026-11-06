@@ -559,8 +559,10 @@ dialog[open]::backdrop { animation: fade-bg .24s ease both; }
 @media (prefers-reduced-motion: reduce) { .more-wrap, #more-btn .chev { transition: none; } }
 
 /* ---- 연별 꺾은선 그래프 ---- */
-#year-bars { position: relative; margin-top: 4px; padding: 0 0 20px; }
-#year-bars .yc-cols button { padding-bottom: 0; }
+/* 그래프 상자: id가 아니라 class로 꾸며서, 순환용 복사본(id를 지운 것)에서도 같은 모양이 된다 */
+.yc-box { position: relative; margin-top: 4px; padding: 0 0 20px; }
+.yc-box .yc-cols { bottom: 0; }
+.yc-box .yc-cols button { padding-bottom: 0; }
 .yc-svg { display: block; }
 .yc-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
 .yc-line { stroke: var(--primary); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: yc-draw .95s cubic-bezier(.3, .7, .2, 1) both; }
@@ -618,9 +620,6 @@ h2 { line-height: 1.4; }
 #cmp-dots i.on { width: 14px; border-radius: 3px; background: var(--primary); }
 #cmp-s2 b { position: relative; display: block; margin: 3px 0 4px; font-size: 22px; font-weight: 800; letter-spacing: -.5px; line-height: 1.25; font-variant-numeric: tabular-nums; }
 #cmp-s2 span, #cmp-s2 small { position: relative; display: block; }
-#wk-chart { position: relative; margin-top: 4px; padding-bottom: 20px; }
-#wk-chart .yc-cols { bottom: 0; }
-#wk-chart .yc-cols button { padding-bottom: 0; }
 
 /* ---- 내역 더보기 ---- */
 #hdlg #h-title { flex: 1; font-size: 17px; padding: 0 4px; }
@@ -674,3 +673,4 @@ h2 { line-height: 1.4; }
 .slegend li em { font-style: normal; color: var(--sub); font-size: 13px; }
 .slegend li b { min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
 .slegend li.warn b { color: var(--out); }
+#au-version { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--sub); }
