@@ -121,7 +121,7 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #donut-center span { font-size: 12px; color: var(--sub); }
 #donut-center b { font-size: 17px; }
 #donut-center small { font-size: 12px; color: var(--sub); min-height: 1em; }
-.slice { cursor: pointer; transition: stroke-width .15s, opacity .15s; }
+.slice { cursor: pointer; transition: stroke-width .3s ease, opacity .3s ease; }
 #stats li[data-cat] { cursor: pointer; }
 #stats li.sel { outline: 2px solid var(--primary); }
 #stats li.plain { text-align: center; color: var(--sub); }
@@ -310,14 +310,6 @@ details.more[open] summary::after { content: ' ‹'; }
 .field { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .field select { width: auto; margin: 0; }
 
-#year-bars { display: flex; gap: 2px; background: var(--card); border-radius: 16px; padding: 12px 6px 8px; }
-#year-bars button { flex: 1; min-width: 0; background: transparent; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#year-bars small { font-size: 9px; color: var(--sub); min-height: 11px; white-space: nowrap; }
-#year-bars .col { width: 100%; height: 110px; display: flex; align-items: flex-end; justify-content: center; }
-#year-bars .col i { display: block; width: 70%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--primary); opacity: .75; }
-#year-bars em { font-style: normal; font-size: 10px; color: var(--sub); }
-#year-bars .now em { color: var(--primary); font-weight: 700; }
-#year-bars .now .col i { opacity: 1; }
 #stats li { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 15px; margin-bottom: 7px; }
 #stats .top { display: flex; justify-content: space-between; margin-bottom: 6px; }
 #stats .bar { height: 7px; border-radius: 4px; background: var(--line); overflow: hidden; }
@@ -578,3 +570,71 @@ dialog[open]::backdrop { animation: fade-bg .24s ease both; }
 .panel .field .pick-btn { flex: none; width: 60%; margin-bottom: 0; }
 .sub-row { margin-bottom: 12px; }
 @media (prefers-reduced-motion: reduce) { .switch i, .switch i::before, .switch i::after { transition: none; } }
+
+/* ---- 금액: 원 단위와 한글 읽기 ---- */
+.money { position: relative; }
+.money input { margin-bottom: 0; padding-right: 46px; }
+.money .unit { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 18px; font-weight: 700; color: var(--sub); pointer-events: none; }
+.won-read { min-height: 20px; margin: 6px 4px 10px; font-size: 12.5px; line-height: 1.4; color: var(--sub); opacity: .75; }
+
+/* ---- 더보기/접기: 가로로 꽉 찬 막대 대신 작은 줄, 펼침은 부드럽게 ---- */
+#more-btn { display: flex; align-items: center; gap: 6px; width: 100%; margin: 0 0 6px; padding: 6px 4px; background: none; border-radius: 10px; font-size: 13px; }
+#more-btn span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sub); }
+#more-btn b { flex: none; margin-left: auto; color: var(--primary); }
+#more-btn .chev { flex: none; display: inline-block; font-style: normal; font-size: 17px; line-height: 1; color: var(--primary); transform: rotate(90deg); transition: transform .24s ease; }
+#more-btn[aria-expanded="true"] .chev { transform: rotate(-90deg); }
+.more-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s ease; }
+.more-wrap.open { grid-template-rows: 1fr; }
+#more { min-height: 0; overflow: hidden; margin: 0; padding: 0; }   /* 접혔을 때 안쪽 여백이 비치지 않게 여백은 두지 않는다 */
+@media (prefers-reduced-motion: reduce) { .more-wrap, #more-btn .chev { transition: none; } }
+
+/* ---- 연별 꺾은선 그래프 ---- */
+#year-bars { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 8px 0 30px; overflow: hidden; }
+.yc-svg { display: block; }
+.yc-grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.yc-line { stroke: var(--primary); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: yc-draw .95s cubic-bezier(.3, .7, .2, 1) both; }
+.yc-area { animation: yc-fade .9s ease both .15s; }
+.yc-dot { fill: var(--card); stroke: var(--primary); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: yc-pop .35s cubic-bezier(.3, 1.5, .5, 1) both; }
+.yc-dot.now { fill: var(--primary); stroke: var(--card); stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--primary)); }
+.yc-val { font-size: 10.5px; font-weight: 700; fill: var(--text); animation: yc-fade .5s ease both .9s; }
+.yc-cols { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; }
+.yc-cols button { flex: 1; min-width: 0; padding: 0; background: transparent; border-radius: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+.yc-cols em { font-style: normal; font-size: 10.5px; color: var(--sub); }
+.yc-cols .now em { color: var(--primary); font-weight: 700; }
+.yc-cols .off em { opacity: .45; }
+@keyframes yc-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes yc-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes yc-pop { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .yc-line, .yc-area, .yc-dot, .yc-val { animation: none; } }
+
+/* ---- 원 그래프: 그려지는 효과, 고른 조각의 빛 ---- */
+.slice.sel { animation: slice-glow 1.8s ease-in-out infinite; }
+@keyframes slice-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--col)); }
+  50% { filter: drop-shadow(0 0 9px var(--col)); }
+}
+#donut-center b { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .slice, .slice.sel { animation: none; transition: none; } }
+
+/* ---- 글이 붙어 보이지 않게: 줄 간격과 여백을 넉넉하게 ---- */
+body { line-height: 1.55; letter-spacing: .01em; }
+.hint { line-height: 1.6; margin-top: 10px; }
+.cap { margin: 4px 2px 8px; line-height: 1.5; }
+.check { line-height: 1.55; }
+.item .memo { margin-top: 5px; line-height: 1.5; }
+.item .cat span { line-height: 1.45; }
+#list li.item, #q-list li.item { padding: 14px 15px; }
+.chip { padding: 1px 8px; margin-right: 6px; }
+#stats .top { margin-bottom: 9px; }
+#stats li { padding: 13px 15px; }
+details.more summary { padding: 8px 2px; }
+.panel .field { margin-bottom: 14px; }
+#summary span { line-height: 1.5; }
+.day-head .day-n { line-height: 1.5; }
+h2 { line-height: 1.4; }
+
+/* ---- 년월 선택 창: 연도를 눌러 연도 목록으로 ---- */
+#mp-title { font-size: 17px; font-weight: 700; padding: 7px 16px; border-radius: 999px; background: var(--bg); color: var(--text); }
+#mp-title.tap::after { content: ' ▾'; font-size: 14px; color: var(--primary); }
+#mp-title.tap.open::after { content: ' ▴'; }
+#mp-title:disabled { opacity: 1; background: transparent; }

@@ -112,6 +112,7 @@ function openFixed(f) {
   fillCategories('fcategory', 'out', f && f.category);
   $('fname').value = f ? f.name : '';
   $('famount').value = f ? f.amount.toLocaleString('ko-KR') : '';
+  $('famount').refreshRead();
   document.querySelector(`input[name=fpay][value=${f ? f.pay : settings.lastPay}]`).checked = true;
   setFday(f ? f.day : new Date().getDate());
   $('fsub').checked = !!(f && f.sub);

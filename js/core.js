@@ -76,6 +76,29 @@ function timeLabel(v) {
   const [h, m] = v.split(':').map(Number);
   return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${pad(m)}`;
 }
+// 금액을 한글로 읽는다: 12345 -> '일만 이천삼백사십오원', 50000 -> '오만원'. 십·백·천 앞의 '일'은 읽지 않는다. 0 이하이거나 너무 크면 ''
+function koreanMoney(n) {
+  n = Math.floor(Number(n));
+  if (!Number.isFinite(n) || n <= 0 || n >= 1e16) return '';
+  const digit = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+  const unit = ['', '십', '백', '천'];
+  const group = (g) => {   // 1 ~ 9999
+    let out = '';
+    for (let p = 3; p >= 0; p--) {
+      const d = Math.floor(g / 10 ** p) % 10;
+      if (d) out += (d === 1 && p > 0 ? '' : digit[d]) + unit[p];
+    }
+    return out;
+  };
+  const big = ['', '만', '억', '조'];
+  const parts = [];
+  for (let b = 3; b >= 0; b--) {
+    const g = Math.floor(n / 10000 ** b) % 10000;
+    if (g) parts.push(group(g) + big[b]);
+  }
+  return parts.join(' ') + '원';
+}
+
 // 날짜('YYYY-MM-DD')를 '2026년 11월 6일 (금)'으로, 그리고 그 달의 일수(m은 1~12)
 const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
 function dateLabel(v, showYear = true) {
@@ -91,7 +114,7 @@ function wheelToTime(ap, h12, m) {
   return `${pad((h12 % 12) + ap * 12)}:${pad(m)}`;
 }
 
-// 내역 검색: 띄어 쓴 낱말이 모두 들어 있는 내역을 최신순으로. 메모·카테고리·결제수단·소비 성격·날짜·금액에서 찾는다.
+// 내역 검색: 띄어 쓴 낱말이 모두 들어 있는 내역을 최신순으로. 메모·카테고리·결제수단·소비 평가·날짜·금액에서 찾는다.
 // 금액은 '12000', '12,000', '12,000원' 어느 쪽으로 써도 찾고, 날짜는 '2026-11'이나 '2026-11-03'처럼 쓴다.
 const searchText = (s) => String(s || '').toLowerCase();
 function searchItems(list, query) {

@@ -49,12 +49,16 @@ document.querySelectorAll('#list-mode button').forEach((b) => (b.onclick = () =>
 }));
 document.querySelectorAll('#stats-mode button').forEach((b) => (b.onclick = () => {
   const changed = statsMode !== b.dataset.mode;
-  statsMode = b.dataset.mode; selCat = null; render();
+  statsMode = b.dataset.mode; selCat = null;
+  if (changed) resetStatsAnim();
+  render();
   if (changed) playIn($('view-stats'), 'fade-in');
 }));
 document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
   const changed = tab !== b.dataset.tab;
-  tab = b.dataset.tab; selCat = null; render();
+  tab = b.dataset.tab; selCat = null;
+  if (changed && tab === 'stats') resetStatsAnim();
+  render();
   if (changed) playIn(activePane(), 'fade-in');
 }));
 
@@ -68,18 +72,31 @@ function move(step) {
 $('prev').onclick = () => move(-1);
 $('next').onclick = () => move(1);
 
-// 맨 위 제목을 누르면 연도와 달을 골라 바로 이동한다. 연별 통계에서는 연도만 고른다. 내역이 있는 달(해)에는 점이 붙는다
-let pickYear = 0;
+// 맨 위 제목을 누르면 연도와 달을 골라 바로 이동한다. 연별 통계에서는 연도만 고른다. 내역이 있는 달(해)에는 점이 붙는다.
+// 달 화면에서 위쪽 연도를 누르면 연도 목록(12개씩)이 나오고, 연도를 고르면 그 해의 달 화면으로 돌아온다. 연도 글자를 다시 누르면 달 화면으로 돌아온다.
+let pickYear = 0;         // 달 화면에서 보고 있는 해
+let pickingYear = false;  // 연도 목록을 보는 중인지
+let yearBase = 0;         // 연도 목록의 첫 해
 function renderPicker() {
-  const yearMode = tab === 'stats' && statsMode === 'year';
-  const has = new Set(items.map((i) => i.date.slice(0, yearMode ? 4 : 7)));
+  const yearMode = tab === 'stats' && statsMode === 'year';   // 연별 통계는 처음부터 연도 목록이 나온다
+  const years = yearMode || pickingYear;
+  const has = new Set(items.map((i) => i.date.slice(0, years ? 4 : 7)));
   const thisYear = new Date().getFullYear();
   $('mp-prev').hidden = $('mp-next').hidden = yearMode;
-  $('mp-title').textContent = yearMode ? '연도 선택' : `${pickYear}년`;
+  $('mp-prev').setAttribute('aria-label', pickingYear ? '이전 연도들' : '이전 해');
+  $('mp-next').setAttribute('aria-label', pickingYear ? '다음 연도들' : '다음 해');
+  const title = $('mp-title');
+  title.textContent = years ? '연도 선택' : `${pickYear}년`;
+  title.disabled = yearMode;                      // 연별 통계에서는 이미 연도 목록이라 누를 게 없다
+  title.classList.toggle('tap', !yearMode);       // 누를 수 있다는 표시(▾, 연도 목록을 보는 중에는 ▴)
+  title.classList.toggle('open', pickingYear);
+  $('mp-hint').textContent = years ? '점이 있는 해는 내역이 있어요.' : '점이 있는 달은 내역이 있어요.';
   const cells = [];
   if (yearMode) {
     const last = Math.max(thisYear + 1, cur.getFullYear());
     for (let y = last - 11; y <= last; y++) cells.push({ label: `${y}`, key: `${y}`, go: new Date(y, cur.getMonth(), 1), on: y === cur.getFullYear() });
+  } else if (pickingYear) {
+    for (let y = yearBase; y < yearBase + 12; y++) cells.push({ label: `${y}`, key: `${y}`, pick: y, on: y === pickYear });
   } else {
     for (let m = 0; m < 12; m++) {
       const key = `${pickYear}-${String(m + 1).padStart(2, '0')}`;
@@ -93,15 +110,30 @@ function renderPicker() {
 $('month').onclick = () => {
   if (tab === 'settings') return;
   pickYear = cur.getFullYear();
+  pickingYear = false;
   renderPicker();
   $('mdlg').showModal();
 };
-$('mp-prev').onclick = () => { pickYear--; renderPicker(); };
-$('mp-next').onclick = () => { pickYear++; renderPicker(); };
+$('mp-title').onclick = () => {
+  pickingYear = !pickingYear;
+  if (pickingYear) yearBase = pickYear - 5;   // 보던 해가 목록 가운데쯤 오게
+  renderPicker();
+  playIn($('mp-grid'), 'fade-in');
+};
+$('mp-prev').onclick = () => { if (pickingYear) yearBase -= 12; else pickYear--; renderPicker(); };
+$('mp-next').onclick = () => { if (pickingYear) yearBase += 12; else pickYear++; renderPicker(); };
 $('mp-grid').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-k]');
   if (!b) return;
-  cur = $('mp-grid').cells[Number(b.dataset.k)].go;
+  const c = $('mp-grid').cells[Number(b.dataset.k)];
+  if (c.pick !== undefined) {   // 연도 목록에서 연도를 골랐다: 그 해의 달 화면으로 돌아간다 (아직 이동하지 않는다)
+    pickYear = c.pick;
+    pickingYear = false;
+    renderPicker();
+    playIn($('mp-grid'), 'fade-in');
+    return;
+  }
+  cur = c.go;
   selCat = null; selDay = null;
   $('mdlg').close();
   render();
@@ -133,10 +165,14 @@ Object.entries(CHIPS_OF).forEach(([id, chipsId]) => $(chipsId).addEventListener(
   });
 }));
 
+// 금액 입력: 쉼표를 붙여 주고, 입력칸 아래에 한글로 읽은 금액을 작게 보여 준다 (값을 코드로 바꿔 넣었을 때는 el.refreshRead()를 부른다)
 function bindMoney(el) {
+  const read = $(el.id + '-read');
+  el.refreshRead = () => { read.textContent = koreanMoney(Number(el.value.replace(/\D/g, ''))); };
   el.addEventListener('input', (e) => {
     const n = e.target.value.replace(/\D/g, '');
     e.target.value = n ? Number(n).toLocaleString('ko-KR') : '';
+    el.refreshRead();
   });
 }
 bindMoney($('amount'));
@@ -158,6 +194,7 @@ function openDialog(item) {
   const mood = (item && item.mood) || '';
   document.querySelectorAll('input[name=mood]').forEach((r) => (r.checked = r.value === mood));
   $('amount').value = item ? item.amount.toLocaleString('ko-KR') : '';
+  $('amount').refreshRead();
   const date = item ? item.date : (listMode === 'cal' && selDay) || today();
   setDateValue(date);
   // 새 내역은 지금 시각을 채워 두고(오늘 날짜일 때만), 예전 내역은 있는 값 그대로 둔다
@@ -206,9 +243,10 @@ $('time-btn').onclick = () => openTimePicker($('time').value, (v) => {
   updateMoreSum();
 });
 
-// '더보기': 결제수단, 소비 성격, 날짜, 시각은 접어 두고, 접힌 동안은 저장될 값을 한 줄로 보여준다
+// '더보기': 결제수단, 소비 평가, 날짜, 시각은 접어 두고, 접힌 동안은 저장될 값을 한 줄로 보여준다
 function setMore(open) {
-  $('more').hidden = !open;
+  $('more-wrap').classList.toggle('open', open);   // 높이는 CSS 전환으로 부드럽게 변한다
+  $('more').inert = !open;                         // 접힌 동안은 키보드·화면 읽기에서도 빠진다
   $('more-btn').setAttribute('aria-expanded', String(open));
   $('more-btn').querySelector('b').textContent = open ? '접기' : '더보기';
   $('more-sum').hidden = open;
@@ -224,7 +262,7 @@ function updateMoreSum() {
   if (out && mood && mood.value) bits.push(MOODS[mood.value]);
   $('more-sum').textContent = bits.filter(Boolean).join(' · ');
 }
-$('more-btn').onclick = () => setMore($('more').hidden);
+$('more-btn').onclick = () => setMore(!$('more-wrap').classList.contains('open'));
 $('more').addEventListener('change', updateMoreSum);
 $('more').addEventListener('input', updateMoreSum);
 

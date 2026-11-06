@@ -20,7 +20,7 @@ $('export-csv').onclick = () => {
   const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
   const rows = [...items].sort((a, b) => a.date.localeCompare(b.date))
     .map((i) => [i.date, i.time || '', i.type === 'out' ? '지출' : '수입', i.category, PAY[i.pay] || '', MOODS[i.mood] || '', i.amount, i.memo].map(esc).join(','));
-  download('가계부.csv', '﻿날짜,시각,구분,카테고리,결제수단,소비성격,금액,메모\n' + rows.join('\n'), 'text/csv');
+  download('가계부.csv', '﻿날짜,시각,구분,카테고리,결제수단,소비평가,금액,메모\n' + rows.join('\n'), 'text/csv');
 };
 $('export-json').onclick = () => {
   settings.lastBackup = today(); settings.backupSnooze = ''; saveSettings();   // 백업 파일에도 이 날짜가 들어간다

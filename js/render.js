@@ -359,50 +359,144 @@ function renderStats(period, out, yearView) {
     .map((k) => `<li><span>${PAY[k] || '미지정'}</span><span class="pct">${out ? Math.round((byPay[k] / out) * 100) : 0}%</span><b>${won(byPay[k])}</b></li>`)
     .join('');
 
-  // 소비 성격별 합계 (성격을 한 번도 고르지 않았으면 안내만 보여준다)
+  // 소비 평가별 합계 (평가를 한 번도 고르지 않았으면 안내만 보여준다)
   const byMood = { need: 0, want: 0, regret: 0, none: 0 };
   outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount));
-  // 소비 성격을 한 번도 쓴 적이 없으면 이 영역 자체를 보이지 않는다
+  // 소비 평가를 한 번도 쓴 적이 없으면 이 영역 자체를 보이지 않는다
   $('mood-wrap').hidden = !outs.length || !items.some((i) => MOODS[i.mood]);
   $('mood-stats').innerHTML = outs.some((i) => MOODS[i.mood])
     ? [...Object.keys(MOODS), 'none']
       .filter((k) => k !== 'none' || byMood.none)
       .map((k) => `<li class="${k === 'regret' ? 'regret' : ''}"><span>${MOODS[k] || '미분류'}</span><span class="pct">${Math.round((byMood[k] / out) * 100)}%</span><b>${won(byMood[k])}</b></li>`)
       .join('')
-    : '<li class="plain">이 기간에는 소비 성격을 고른 지출이 없어요.</li>';
+    : '<li class="plain">이 기간에는 소비 평가를 고른 지출이 없어요.</li>';
 }
 
+// 연별 보기의 월별 지출: 꺾은선 그래프. 선은 왼쪽에서 오른쪽으로 그려지고, 아래 달 이름을 누르면 그 달로 이동한다
+function resetStatsAnim() {   // 통계에 다시 들어오면 그래프 효과를 처음부터 보여 준다
+  $('year-bars').dataset.key = '';
+  $('donut-total').dataset.v = 0;
+  resetDonut();
+}
 function renderYearBars(period) {
+  const box = $('year-bars');
   const months = Array(12).fill(0);
   period.filter((i) => i.type === 'out').forEach((i) => (months[Number(i.date.slice(5, 7)) - 1] += i.amount));
+  const thisYear = today().slice(0, 4) === String(cur.getFullYear());
+  const nowM = thisYear ? Number(today().slice(5, 7)) - 1 : -1;
+  const last = thisYear ? nowM : 11;   // 올해는 이번 달까지만 이어 그린다 (앞으로 올 달이 0원으로 떨어져 보이지 않게)
+  const W = box.clientWidth || 340, H = 124, padT = 22, padB = 8;
+  const key = `${cur.getFullYear()}|${W}|${months.join(',')}`;
+  if (box.dataset.key === key) return;   // 그대로면 다시 그리지 않는다 (카테고리를 눌러도 선이 매번 다시 그려지지 않게)
+  box.dataset.key = key;
   const max = Math.max(...months, 1);
-  const nowM = today().slice(0, 4) === String(cur.getFullYear()) ? Number(today().slice(5, 7)) - 1 : -1;
-  $('year-bars').innerHTML = months.map((v, k) =>
-    `<button data-m="${k}" class="${k === nowM ? 'now' : ''}">` +
-    `<small>${v ? short(v) : ''}</small>` +
-    `<div class="col"><i style="height:${(v / max) * 100}%"></i></div>` +
-    `<em>${k + 1}월</em></button>`).join('');
+  const col = W / 12;
+  const pts = months.slice(0, last + 1).map((v, k) => [(k + 0.5) * col, padT + (1 - v / max) * (H - padT - padB)]);
+  const f = (n) => n.toFixed(1);
+  const line = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(' ');
+  const area = `${f(pts[0][0])},${H} ${line} ${f(pts[pts.length - 1][0])},${H}`;
+  const topK = max > 1 ? months.indexOf(max) : -1;   // 가장 많이 쓴 달
+  const grid = [0.33, 0.66, 1].map((g) => { const y = padT + g * (H - padT - padB); return `<line class="yc-grid" x1="0" x2="${W}" y1="${f(y)}" y2="${f(y)}"/>`; }).join('');
+  const dots = pts.map(([x, y], k) => `<circle class="yc-dot${k === nowM ? ' now' : ''}" cx="${f(x)}" cy="${f(y)}" r="${k === nowM ? 5 : 3.5}" style="animation-delay:${350 + k * 45}ms"/>`).join('');
+  const vals = pts.map(([x, y], k) => (months[k] && (k === nowM || k === topK))
+    ? `<text class="yc-val" x="${f(x)}" y="${f(y - 10)}" text-anchor="middle">${short(months[k])}</text>` : '').join('');
+  box.innerHTML =
+    `<svg class="yc-svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">` +
+    '<defs><linearGradient id="yc-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--primary)" stop-opacity=".30"/><stop offset="1" stop-color="var(--primary)" stop-opacity="0"/></linearGradient></defs>' +
+    grid +
+    `<polygon class="yc-area" points="${area}" fill="url(#yc-fill)"/>` +
+    `<polyline class="yc-line" points="${line}" pathLength="1" fill="none"/>` +
+    dots + vals + '</svg>' +
+    '<div class="yc-cols">' + months.map((v, k) =>
+      `<button type="button" data-m="${k}" class="${k === nowM ? 'now' : ''}${k > last ? ' off' : ''}" aria-label="${k + 1}월"><em>${k + 1}월</em></button>`).join('') + '</div>';
 }
 
+// 숫자가 이전 값에서 새 값으로 올라가거나 내려가며 바뀐다 (폰의 '애니메이션 줄이기'를 켰으면 바로 바뀐다)
+function countTo(el, to, fmt) {
+  const from = Number(el.dataset.v || 0);
+  el.dataset.v = to;
+  cancelAnimationFrame(el._raf);
+  if (from === to || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 600;
+  const step = (t) => {
+    const p = Math.min(1, (t - t0) / dur);
+    el.textContent = fmt(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))));
+    if (p < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+// 원 그래프: 조각을 이전 모양에서 새 모양으로 이어서 늘이고 줄인다. 처음에는 위에서부터 감겨 펼쳐지듯 나타나고,
+// 달을 바꾸면 지우고 다시 그리지 않고 조각이 부드럽게 옮겨 가며, 고른 조각은 커지면서 빛난다. 가운데 숫자는 올라가듯 바뀐다.
+const DONUT_R = 38, DONUT_C = 2 * Math.PI * DONUT_R, DONUT_GAP = 1.4;
+const donutEls = new Map();   // 카테고리 -> 그려진 circle (조각을 유지해서 모양이 이어서 변하게 한다)
+let donutRaf = 0;
+const easeInOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+function resetDonut() {   // 통계에 다시 들어오면 처음부터 펼쳐지게 비운다
+  cancelAnimationFrame(donutRaf);
+  donutEls.clear();
+  $('donut').innerHTML = '';
+}
+function drawArc(el, start, len) {
+  el._s = start; el._l = len;   // 지금 그려진 값 (움직이는 도중에 다시 그려도 여기서 이어간다)
+  const dash = Math.max(0.01, len - (len > DONUT_GAP * 2 ? DONUT_GAP : 0));   // 조각 사이의 작은 틈
+  el.setAttribute('stroke-dasharray', `${dash} ${DONUT_C}`);
+  el.setAttribute('stroke-dashoffset', -start);
+}
 function renderDonut(rows, total) {
   const svg = $('donut');
-  const R = 38, C = 2 * Math.PI * R;
   const sel = rows.find(([c]) => c === selCat);
   $('donut-label').textContent = sel ? sel[0] : '총 지출';
-  $('donut-total').textContent = won(sel ? sel[1] : total);
+  countTo($('donut-total'), sel ? sel[1] : total, won);
   $('donut-pct').textContent = sel ? `${Math.round((sel[1] / total) * 100)}%` : '';
   if (!rows.length) {
-    svg.innerHTML = `<circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--line)" stroke-width="16"/>`;
+    resetDonut();
+    svg.innerHTML = `<circle cx="50" cy="50" r="${DONUT_R}" fill="none" stroke="var(--line)" stroke-width="16"/>`;
     return;
   }
+  if (!donutEls.size) svg.innerHTML = '';   // 비어 있을 때 보이던 회색 원을 치운다
   let start = 0;
-  svg.innerHTML = rows.map(([cat, amt]) => {
-    const len = (amt / total) * C;
-    const on = cat === selCat;
-    const s = `<circle class="slice" data-cat="${cat}" cx="50" cy="50" r="${R}" fill="none" stroke="${color(cat)}"
-      stroke-width="${on ? 21 : 16}" opacity="${selCat && !on ? 0.3 : 1}"
-      stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-start}" transform="rotate(-90 50 50)"/>`;
-    start += len;
-    return s;
-  }).join('');
+  const target = rows.map(([cat, amt]) => {
+    const a = { cat, start, len: (amt / total) * DONUT_C, color: color(cat) };
+    start += a.len;
+    return a;
+  });
+  for (const a of target) {   // 새 카테고리는 길이 0에서 시작하는 조각을 만든다
+    let el = donutEls.get(a.cat);
+    if (!el) {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      el.setAttribute('class', 'slice');
+      el.setAttribute('cx', 50); el.setAttribute('cy', 50); el.setAttribute('r', DONUT_R);
+      el.setAttribute('fill', 'none'); el.setAttribute('transform', 'rotate(-90 50 50)');
+      el.setAttribute('stroke', a.color);
+      el.dataset.cat = a.cat;
+      drawArc(el, 0, 0);
+      svg.appendChild(el);
+      donutEls.set(a.cat, el);
+    }
+    const on = a.cat === selCat;
+    el.setAttribute('stroke-width', on ? 21 : 16);   // 굵기·투명도는 CSS 전환으로 부드럽게 바뀐다
+    el.setAttribute('opacity', selCat && !on ? 0.3 : 1);
+    el.classList.toggle('sel', on);
+    el.style.setProperty('--col', a.color);
+  }
+  // 지금 그려진 모양 -> 새 모양. 사라지는 카테고리는 길이 0으로 줄어든 뒤 치운다
+  const items = target.map((a) => { const el = donutEls.get(a.cat); return { el, s0: el._s || 0, l0: el._l || 0, s1: a.start, l1: a.len }; });
+  const gone = [...donutEls].filter(([cat]) => !target.some((t) => t.cat === cat))
+    .map(([cat, el]) => ({ el, cat, s0: el._s, l0: el._l, s1: el._s, l1: 0 }));
+  const all = items.concat(gone);
+  const finish = () => {
+    all.forEach((i) => drawArc(i.el, i.s1, i.l1));
+    gone.forEach((g) => { g.el.remove(); donutEls.delete(g.cat); });
+  };
+  cancelAnimationFrame(donutRaf);
+  const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced || all.every((i) => i.s0 === i.s1 && i.l0 === i.l1)) { finish(); return; }
+  const t0 = performance.now(), dur = 850;
+  const step = (t) => {
+    const p = Math.min(1, (t - t0) / dur), e = easeInOut(p);
+    all.forEach((i) => drawArc(i.el, i.s0 + (i.s1 - i.s0) * e, i.l0 + (i.l1 - i.l0) * e));
+    if (p < 1) donutRaf = requestAnimationFrame(step); else finish();
+  };
+  donutRaf = requestAnimationFrame(step);
 }

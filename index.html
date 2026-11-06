@@ -91,7 +91,7 @@
       <ul id="pay-stats"></ul>
     </div>
     <div id="mood-wrap" hidden>
-      <h2>소비 성격별 지출</h2>
+      <h2>소비 평가별 지출</h2>
       <ul id="mood-stats"></ul>
     </div>
   </section>
@@ -213,21 +213,26 @@
       <label><input type="radio" name="type" value="out" checked><span>지출</span></label>
       <label><input type="radio" name="type" value="in"><span>수입</span></label>
     </div>
-    <input id="amount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
+    <div class="money">
+      <input id="amount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
+      <span class="unit" aria-hidden="true">원</span>
+    </div>
+    <p class="won-read" id="amount-read" aria-live="polite"></p>
     <select id="category" hidden></select>
     <div id="cat-chips" class="chips" role="radiogroup" aria-label="카테고리"></div>
     <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <button type="button" id="more-btn" aria-expanded="false" aria-controls="more">
-      <span id="more-sum"></span><b>더보기</b>
+      <span id="more-sum"></span><b>더보기</b><i class="chev" aria-hidden="true">›</i>
     </button>
-    <div id="more" hidden>
+    <div id="more-wrap" class="more-wrap">
+    <div id="more">
       <div class="seg" id="pay-seg">
         <label><input type="radio" name="pay" value="cash"><span>현금</span></label>
         <label><input type="radio" name="pay" value="card"><span>카드</span></label>
         <label><input type="radio" name="pay" value="transfer"><span>계좌이체</span></label>
       </div>
       <div id="mood-seg">
-        <div class="cap">소비 성격 <small>(선택 안 해도 돼요)</small></div>
+        <div class="cap">소비 평가 <small>(선택 안 해도 돼요)</small></div>
         <div class="seg">
           <label><input type="radio" name="mood" value="" checked><span>없음</span></label>
           <label><input type="radio" name="mood" value="need"><span>필수</span></label>
@@ -241,6 +246,7 @@
         <input id="time" type="hidden">
         <button type="button" class="pick-btn" id="time-btn" aria-label="시각"></button>
       </div>
+    </div>
     </div>
     <div class="row">
       <button type="button" id="del" class="danger" hidden>삭제</button>
@@ -273,11 +279,11 @@
 <dialog id="mdlg" tabindex="-1">
   <div class="mp-head">
     <button type="button" id="mp-prev" aria-label="이전 해">‹</button>
-    <b id="mp-title"></b>
+    <button type="button" id="mp-title"></button>
     <button type="button" id="mp-next" aria-label="다음 해">›</button>
   </div>
   <div id="mp-grid"></div>
-  <p class="hint">점이 있는 달은 내역이 있어요.</p>
+  <p class="hint" id="mp-hint">점이 있는 달은 내역이 있어요.</p>
   <div class="row"><button type="button" id="mp-today">이번 달</button><button type="button" id="mp-close">닫기</button></div>
 </dialog>
 
@@ -285,7 +291,11 @@
   <form id="fform" method="dialog">
     <h2 id="fdlg-title">고정지출 추가</h2>
     <input id="fname" type="text" placeholder="이름 (예: 월세, 넷플릭스)" required autocomplete="off">
-    <input id="famount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
+    <div class="money">
+      <input id="famount" type="text" inputmode="numeric" placeholder="금액" required autocomplete="off">
+      <span class="unit" aria-hidden="true">원</span>
+    </div>
+    <p class="won-read" id="famount-read" aria-live="polite"></p>
     <select id="fcategory" hidden></select>
     <div id="fcat-chips" class="chips" role="radiogroup" aria-label="카테고리"></div>
     <div class="seg">
@@ -293,7 +303,7 @@
       <label><input type="radio" name="fpay" value="card" checked><span>카드</span></label>
       <label><input type="radio" name="fpay" value="transfer"><span>계좌이체</span></label>
     </div>
-    <div class="cap">소비 성격</div>
+    <div class="cap">소비 평가</div>
     <div class="seg">
       <label><input type="radio" name="fmood" value=""><span>없음</span></label>
       <label><input type="radio" name="fmood" value="need" checked><span>필수</span></label>

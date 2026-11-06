@@ -310,3 +310,24 @@ test('날짜 표기와 월별 일 수', () => {
   assert.equal(app.run('daysInMonth(2026, 4)'), 30);
   assert.equal(app.run('daysInMonth(2026, 12)'), 31);
 });
+
+test('금액 한글 읽기', () => {
+  const k = app.ctx.koreanMoney;
+  assert.equal(k(1), '일원');
+  assert.equal(k(10), '십원');
+  assert.equal(k(100), '백원');
+  assert.equal(k(1000), '천원');          // 천·백·십 앞의 '일'은 읽지 않는다
+  assert.equal(k(10000), '일만원');       // 만·억 앞은 '일'을 읽는다
+  assert.equal(k(50000), '오만원');
+  assert.equal(k(150000), '십오만원');
+  assert.equal(k(1000000), '백만원');
+  assert.equal(k(12345), '일만 이천삼백사십오원');
+  assert.equal(k(372000), '삼십칠만 이천원');
+  assert.equal(k(100000000), '일억원');
+  assert.equal(k(123456789), '일억 이천삼백사십오만 육천칠백팔십구원');
+  assert.equal(k(1000000000000), '일조원');
+  assert.equal(k(0), '');
+  assert.equal(k(-5), '');
+  assert.equal(k(NaN), '');
+  assert.equal(k(1e16), '');               // 너무 크면 읽지 않는다
+});
