@@ -120,8 +120,28 @@ $('mp-title').onclick = () => {
   renderPicker();
   playIn($('mp-grid'), 'fade-in');
 };
-$('mp-prev').onclick = () => { if (pickingYear) yearBase -= 12; else pickYear--; renderPicker(); };
-$('mp-next').onclick = () => { if (pickingYear) yearBase += 12; else pickYear++; renderPicker(); };
+// 해를 넘긴다 (연도 목록을 보는 중이면 12개씩). 밀어 넘기는 방향대로 새 화면이 들어온다
+function stepPicker(step) {
+  if (pickingYear) yearBase += 12 * step; else pickYear += step;
+  renderPicker();
+  playIn($('mp-grid'), step > 0 ? 'from-right' : 'from-left');
+}
+$('mp-prev').onclick = () => stepPicker(-1);
+$('mp-next').onclick = () => stepPicker(1);
+// 창 안에서 좌우로 밀기: 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전 (연별 통계에서는 화살표가 없으니 넘기지 않는다)
+let mpSwipe = null;
+$('mdlg').addEventListener('touchstart', (e) => {
+  const t = e.touches[0];
+  mpSwipe = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+$('mdlg').addEventListener('touchend', (e) => {
+  if (!mpSwipe) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - mpSwipe.x, dy = t.clientY - mpSwipe.y;
+  mpSwipe = null;
+  if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && !$('mp-next').hidden) stepPicker(dx < 0 ? 1 : -1);
+}, { passive: true });
+$('mdlg').addEventListener('touchcancel', () => { mpSwipe = null; }, { passive: true });
 $('mp-grid').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-k]');
   if (!b) return;

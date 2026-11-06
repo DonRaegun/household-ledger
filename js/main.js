@@ -5,7 +5,8 @@ const MIN_DX = 60;    // 이만큼 이상 가로로 움직여야 스와이프로
 let swipe = null;
 document.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
-  const ok = e.touches.length === 1 && tab !== 'settings' && !$('dlg').open && !$('fdlg').open &&
+  // 열려 있는 창(년월 선택, 내역 추가, 검색 등)이 하나라도 있으면 뒤 화면의 월은 움직이지 않는다
+  const ok = e.touches.length === 1 && tab !== 'settings' && !document.querySelector('dialog[open]') &&
     t.clientX > EDGE && t.clientX < window.innerWidth - EDGE;
   swipe = ok ? { x: t.clientX, y: t.clientY } : null;
 }, { passive: true });
