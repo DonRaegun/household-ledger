@@ -320,10 +320,22 @@ $('fab').onclick = () => openDialog();
 // 비교 카드: 옆으로 밀어 주별 지출을 보고, 아래 점이 어느 칸인지 알려 준다
 function syncCmpDots() {
   const tr = $('cmp-track');
-  const k = Math.round(tr.scrollLeft / (tr.clientWidth || 1));
+  const looped = !!tr.querySelector('.cmp-clone');   // 순환할 때는 맨 앞에 복사본이 하나 있다
+  const n = document.querySelectorAll('#cmp-dots i').length || 1;
+  const k = (Math.round(tr.scrollLeft / (tr.clientWidth || 1)) - (looped ? 1 : 0) + n) % n;
   document.querySelectorAll('#cmp-dots i').forEach((d, i) => d.classList.toggle('on', i === k));
 }
-$('cmp-track').addEventListener('scroll', syncCmpDots, { passive: true });
+// 끝에서 더 밀면 처음 칸으로, 처음에서 반대로 밀면 마지막 칸으로 이어진다: 복사본에 멈추면 진짜 칸으로 옮긴다
+let cmpTimer = 0;
+function cmpWrap() {
+  const tr = $('cmp-track');
+  if (!tr.querySelector('.cmp-clone')) return;
+  const n = tr.querySelectorAll('.cmp-slide:not([hidden])').length - 2;   // 숨은 칸은 세지 않는다
+  const i = Math.round(tr.scrollLeft / (tr.clientWidth || 1));
+  if (i === 0) jumpCmp(n);
+  else if (i === n + 1) jumpCmp(1);
+}
+$('cmp-track').addEventListener('scroll', () => { syncCmpDots(); clearTimeout(cmpTimer); cmpTimer = setTimeout(cmpWrap, 80); }, { passive: true });
 $('wk-chart').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-m]');
   if (b && !b.classList.contains('off')) pickPoint($('wk-chart'), Number(b.dataset.m));

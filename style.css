@@ -185,11 +185,7 @@ h2 { font-size: 15px; margin: 16px 0 8px; }
 #fab.away { transform: translateY(96px); opacity: 0; pointer-events: none; }
 
 
-#pay-stats li, #mood-stats li { display: flex; align-items: center; gap: 8px; background: var(--card); border-radius: 16px; padding: 10px 14px; margin-bottom: 6px; }
-#pay-stats li span:first-child, #mood-stats li span:first-child { flex: 1; }
-#pay-stats .pct, #mood-stats .pct { color: var(--sub); font-size: 13px; }
-#mood-stats li.regret b { color: var(--out); }
-#mood-stats li.plain { justify-content: center; color: var(--sub); font-size: 13px; }
+#mood-stats li.plain { background: var(--card); border-radius: 16px; padding: 12px; text-align: center; color: var(--sub); font-size: 13px; }
 
 button:disabled { opacity: .4; cursor: default; }
 
@@ -615,7 +611,7 @@ h2 { line-height: 1.4; }
 /* ---- 비교 카드 옆으로 밀기: 지난 기간 비교 / 주별 지출 ---- */
 #cmp-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
 #cmp-track::-webkit-scrollbar { display: none; }
-.cmp-slide { flex: 0 0 100%; box-sizing: border-box; padding: 16px 18px; scroll-snap-align: start; min-height: 157px; padding-bottom: 26px; }
+.cmp-slide { flex: 0 0 100%; box-sizing: border-box; padding: 16px 18px; scroll-snap-align: start; scroll-snap-stop: always; min-height: 157px; padding-bottom: 26px; }
 .cmp-slide[hidden] { display: none; }
 #cmp-dots { position: absolute; left: 0; right: 0; bottom: 9px; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
 #cmp-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--line); transition: background .2s, width .2s; }
@@ -666,3 +662,15 @@ h2 { line-height: 1.4; }
 #stats .subs .ico svg { width: 17px; height: 17px; }
 #stats .subs em { flex: 1; font-size: 14px; }
 #stats .subs b { font-size: 14px; }
+
+/* ---- 결제수단·소비 평가: 100% 막대 한 줄 ---- */
+#pay-stats > li.split, #mood-stats > li.split { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 15px; }
+.sbar { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden; }
+.sbar i { display: block; min-width: 3px; }
+.slegend { margin-top: 12px; }
+.slegend li { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 14px; }
+.slegend li i { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.slegend li span { flex: 1; }
+.slegend li em { font-style: normal; color: var(--sub); font-size: 13px; }
+.slegend li b { min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+.slegend li.warn b { color: var(--out); }

@@ -259,6 +259,11 @@ function renderCal(month) {
 let currentPeriodForYear = [];
 // 통계 위쪽의 비교 카드: 지난달(연별은 작년)보다 얼마나 더·덜 썼는지
 function renderCompare(out, yearView, byCat, prevCat) {
+  renderCompareCard(out, yearView, byCat, prevCat);
+  syncCmpLoop(cmpState.n, cmpState.reset);
+}
+const cmpState = { n: 0, reset: false };
+function renderCompareCard(out, yearView, byCat, prevCat) {
   const box = $('cmp');
   const { prev, running } = previousSpending(items, cur, yearView);
   const name = (yearView ? '작년' : '지난달') + (running ? ' 같은 기간' : '');
@@ -274,11 +279,11 @@ function renderCompare(out, yearView, byCat, prevCat) {
   const dots = $('cmp-dots');
   dots.hidden = n < 2;
   const kind = `${yearView}|${showWeek}|${showMonth}`;
-  if (dots.dataset.kind !== kind) {   // 보이는 칸이 바뀌면 첫 칸부터 보여 주고 점도 다시 만든다
+  cmpState.n = n;
+  cmpState.reset = dots.dataset.kind !== kind;   // 보이는 칸이 바뀌면 첫 칸부터 보여 주고 점도 다시 만든다
+  if (cmpState.reset) {
     dots.dataset.kind = kind;
     dots.innerHTML = '<i></i>'.repeat(n);
-    $('cmp-track').scrollLeft = 0;
-    syncCmpDots();
   }
   if (showWeek) renderWeekly();
   if (yearView) renderYearBars(currentPeriodForYear);
@@ -298,6 +303,35 @@ function renderCompare(out, yearView, byCat, prevCat) {
   const top = $('cmp-top');
   top.hidden = !pick;
   if (pick) top.textContent = `${diff >= 0 ? '가장 많이 늘어난 곳' : '가장 많이 줄어든 곳'}: ${pick[0]} ${pick[1] > 0 ? '▲' : '▼'} ${won(Math.abs(pick[1]))}`;
+}
+
+// 카드 칸 순환: [마지막 복사본][칸1][칸2]...[마지막][첫째 복사본]. 복사본은 눌러지지 않고 화면 읽기에서도 빠진다
+function syncCmpLoop(n, reset) {
+  const tr = $('cmp-track');
+  tr.querySelectorAll('.cmp-clone').forEach((e) => e.remove());
+  if (n < 2) { tr.scrollLeft = 0; return; }
+  const w = tr.clientWidth || 1;
+  const k = reset ? 1 : Math.max(1, Math.round(tr.scrollLeft / w));   // 다시 그릴 때 보던 칸을 그대로 둔다
+  const real = [...tr.querySelectorAll('.cmp-slide:not([hidden])')];
+  const mk = (el) => {
+    const c = el.cloneNode(true);
+    c.removeAttribute('id');
+    c.querySelectorAll('[id]').forEach((x) => x.removeAttribute('id'));
+    c.classList.add('cmp-clone');
+    c.setAttribute('aria-hidden', 'true');
+    c.inert = true;
+    return c;
+  };
+  tr.insertBefore(mk(real[real.length - 1]), tr.firstChild);
+  tr.appendChild(mk(real[0]));
+  jumpCmp(Math.min(k, n));
+  syncCmpDots();
+}
+function jumpCmp(idx) {   // 애니메이션 없이 칸 위치로 옮긴다 (옮기는 동안만 자석 정렬을 끈다)
+  const tr = $('cmp-track');
+  tr.style.scrollSnapType = 'none';
+  tr.scrollLeft = idx * tr.clientWidth;
+  requestAnimationFrame(() => { tr.style.scrollSnapType = ''; });
 }
 
 // 비교 카드의 두 번째 칸: 주별(7일 단위) 지출 꺾은선 그래프. 월간 그래프와 같은 모양이고, 점을 누르면 그 주의 금액이 뜬다
@@ -404,22 +438,28 @@ function renderStats(period, out, yearView) {
   outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount));
   // 결제수단이 한 종류뿐이면 "카드 100%"가 되어 정보가 없으므로, 두 종류 이상일 때만 보여준다
   $('pay-wrap').hidden = new Set(outs.map((i) => (PAY[i.pay] ? i.pay : 'none'))).size < 2;
-  $('pay-stats').innerHTML = [...Object.keys(PAY), 'none']
-    .filter((k) => k !== 'none' || byPay.none)
-    .map((k) => `<li><span>${PAY[k] || '미지정'}</span><span class="pct">${out ? Math.round((byPay[k] / out) * 100) : 0}%</span><b>${won(byPay[k])}</b></li>`)
-    .join('');
+  $('pay-stats').innerHTML = splitBar([...Object.keys(PAY), 'none'].map((k) => ({ label: PAY[k] || '미지정', amt: byPay[k], color: PAY_COLORS[k] })), out);
 
-  // 소비 평가별 합계 (평가를 한 번도 고르지 않았으면 안내만 보여준다)
+  // 소비 평가별 합계 (평가를 한 번도 고르지 않았으면 이 영역 자체를 보이지 않는다)
   const byMood = { need: 0, want: 0, regret: 0, none: 0 };
   outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount));
-  // 소비 평가를 한 번도 쓴 적이 없으면 이 영역 자체를 보이지 않는다
   $('mood-wrap').hidden = !outs.length || !items.some((i) => MOODS[i.mood]);
   $('mood-stats').innerHTML = outs.some((i) => MOODS[i.mood])
-    ? [...Object.keys(MOODS), 'none']
-      .filter((k) => k !== 'none' || byMood.none)
-      .map((k) => `<li class="${k === 'regret' ? 'regret' : ''}"><span>${MOODS[k] || '미분류'}</span><span class="pct">${Math.round((byMood[k] / out) * 100)}%</span><b>${won(byMood[k])}</b></li>`)
-      .join('')
+    ? splitBar([...Object.keys(MOODS), 'none'].map((k) => ({ label: MOODS[k] || '미분류', amt: byMood[k], color: MOOD_COLORS[k], warn: k === 'regret' })), out)
     : '<li class="plain">이 기간에는 소비 평가를 고른 지출이 없어요.</li>';
+}
+
+// 비율을 한 줄 막대로: 위에는 100% 막대, 아래에는 이름·비율·금액 (금액이 0인 칸은 보이지 않는다)
+const PAY_COLORS = { card: '#8f93ee', cash: '#a6cc66', transfer: '#5b9bf0', none: '#8e99ad' };
+const MOOD_COLORS = { need: '#4cc38a', want: '#f2a65a', regret: '#ee7b78', none: '#8e99ad' };
+function splitBar(parts, total) {
+  const shown = parts.filter((p) => p.amt > 0);
+  if (!shown.length || !total) return '';
+  const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  return '<li class="split"><div class="sbar">' +
+    shown.map((p) => `<i style="flex:${p.amt};background:${p.color}" title="${esc(p.label)}"></i>`).join('') + '</div><ul class="slegend">' +
+    shown.map((p) => `<li${p.warn ? ' class="warn"' : ''}><i style="background:${p.color}"></i><span>${esc(p.label)}</span><em>${Math.round((p.amt / total) * 100)}%</em><b>${won(p.amt)}</b></li>`).join('') +
+    '</ul></li>';
 }
 
 // 연별 보기의 월별 지출: 꺾은선 그래프. 선은 왼쪽에서 오른쪽으로 그려지고, 아래 달 이름을 누르면 그 달로 이동한다
