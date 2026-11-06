@@ -276,3 +276,37 @@ test('내역 검색: 낱말이 모두 들어 있는 내역만, 최신순', () =>
   assert.deepEqual(ids('   '), []);                           // 빈 검색어는 아무것도 보여 주지 않는다
   assert.deepEqual(ids('없는말'), []);
 });
+
+test('시각 표기와 돌려서 고르는 칸의 변환', () => {
+  const c = app.ctx;
+  assert.equal(c.timeLabel('00:05'), '오전 12:05');   // 자정은 오전 12시
+  assert.equal(c.timeLabel('12:30'), '오후 12:30');   // 정오는 오후 12시
+  assert.equal(c.timeLabel('15:07'), '오후 3:07');
+  assert.equal(c.timeLabel(''), '');
+  assert.deepEqual({ ...c.timeToWheel('15:07') }, { ap: 1, h12: 3, m: 7 });
+  assert.deepEqual({ ...c.timeToWheel('00:00') }, { ap: 0, h12: 12, m: 0 });
+  assert.equal(c.wheelToTime(0, 12, 0), '00:00');
+  assert.equal(c.wheelToTime(1, 12, 30), '12:30');
+  assert.equal(c.wheelToTime(1, 3, 7), '15:07');
+});
+
+test('시각 변환: 하루 1440분 모두 왕복해도 같다', () => {
+  const c = app.ctx;
+  for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m++) {
+    const v = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    const w = c.timeToWheel(v);
+    assert.equal(c.wheelToTime(w.ap, w.h12, w.m), v);
+  }
+});
+
+test('날짜 표기와 월별 일 수', () => {
+  const c = app.ctx;
+  assert.equal(c.dateLabel('2026-11-06'), '2026년 11월 6일 (금)');
+  assert.equal(c.dateLabel('2026-11-01'), '2026년 11월 1일 (일)');
+  assert.equal(c.dateLabel('2026-11-06', false), '11월 6일 (금)');   // 연도를 뺀 짧은 표기
+  assert.equal(c.dateLabel(''), '');
+  assert.equal(app.run('daysInMonth(2026, 2)'), 28);   // 평년 2월
+  assert.equal(app.run('daysInMonth(2028, 2)'), 29);   // 윤년 2월
+  assert.equal(app.run('daysInMonth(2026, 4)'), 30);
+  assert.equal(app.run('daysInMonth(2026, 12)'), 31);
+});

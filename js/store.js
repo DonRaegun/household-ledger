@@ -94,6 +94,7 @@ function normSettings(s) {
   s = s && typeof s === 'object' ? s : {};
   return {
     npDismissed: s.npDismissed === true,   // '결제 알림 자동 읽기를 켜세요' 안내를 닫았는지
+    theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',   // 화면 모드: 폰 설정을 따라감 / 밝게 / 어둡게
     autoApply: s.autoApply !== false,      // 확실한 결제 알림을 확인 없이 가계부에 넣을지 (기본: 켬)
     lastBackup: typeof s.lastBackup === 'string' && DATE_RE.test(s.lastBackup) ? s.lastBackup : '',
     backupSnooze: typeof s.backupSnooze === 'string' && DATE_RE.test(s.backupSnooze) ? s.backupSnooze : '',

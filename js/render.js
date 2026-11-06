@@ -68,6 +68,7 @@ function render() {
   } else {
     renderSettings();
   }
+  updateFoldAll();
   if ($('qdlg').open) renderSearch();   // 검색 창이 열려 있는 동안 내역을 고치면 결과도 같이 갱신한다
 }
 
@@ -161,16 +162,79 @@ function dayHead(date, month) {
   return li;
 }
 
+// ---- 날짜별 접기·펼치기 ----
+// 기본: 오늘은 펼치고 나머지 날은 접는다(이미 끝난 달은 모두 접힌다). 눌러서 바꾼 상태는 같은 달을 보는 동안 유지하고, 달을 옮기면 기본으로 돌아온다.
+// 방금 들어온 내역(자동 추가 등)이 있는 날은 접혀 있어도 펼쳐서 놓치지 않게 한다.
+const dayState = new Map();   // 날짜 -> 펼침 여부 (눌러서 정한 것만)
+let dayStateMonth = '';
+const dayIsOpen = (date) => (dayState.has(date) ? dayState.get(date) : date === today());
+
+function dayBlock(date, dayItems) {
+  const open = dayIsOpen(date);
+  const li = document.createElement('li');
+  li.className = 'dayblock' + (open ? ' open' : '');
+  li.dataset.date = date;
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'day-head';
+  head.setAttribute('aria-expanded', String(open));
+  head.innerHTML = '<i class="chev" aria-hidden="true">›</i><span class="day-label"></span><span class="day-n"></span><span class="day-sum"></span>';
+  head.querySelector('.day-label').textContent = dayLabel(date);
+  head.querySelector('.day-n').textContent = `${dayItems.length}건`;
+  const sum = (t) => dayItems.reduce((n, i) => (i.type === t ? n + i.amount : n), 0);
+  const out = sum('out'), inc = sum('in');
+  const sumEl = head.querySelector('.day-sum');
+  sumEl.textContent = out ? '-' + won(out) : inc ? '+' + won(inc) : '';   // 접어도 보이는 그날 합계 (지출이 없는 날은 수입)
+  sumEl.classList.toggle('in', !out && !!inc);
+  li.appendChild(head);
+  const body = document.createElement('div');
+  body.className = 'day-body';
+  body.inert = !open;   // 접힌 동안은 키보드·화면 읽기에서도 빠진다
+  const ul = document.createElement('ul');
+  dayItems.forEach((i) => ul.appendChild(itemEl(i)));
+  body.appendChild(ul);
+  li.appendChild(body);
+  return li;
+}
+
+function setDayOpen(block, open) {
+  dayState.set(block.dataset.date, open);
+  block.classList.toggle('open', open);   // 높이는 CSS 전환으로 부드럽게 변한다
+  block.querySelector('.day-head').setAttribute('aria-expanded', String(open));
+  block.querySelector('.day-body').inert = !open;
+}
+function dayBlocks() { return [...document.querySelectorAll('#list .dayblock')]; }
+function updateFoldAll() {
+  const blocks = dayBlocks();
+  const btn = $('fold-all');
+  btn.hidden = tab !== 'list' || listMode !== 'list' || blocks.length < 2;
+  btn.textContent = blocks.every((b) => b.classList.contains('open')) ? '모두 접기' : '모두 펼치기';
+}
+$('list').addEventListener('click', (e) => {
+  const head = e.target.closest('.day-head');
+  if (!head) return;
+  setDayOpen(head.parentElement, !head.parentElement.classList.contains('open'));
+  updateFoldAll();
+});
+$('fold-all').onclick = () => {
+  const blocks = dayBlocks();
+  const open = !blocks.every((b) => b.classList.contains('open'));
+  blocks.forEach((b) => setDayOpen(b, open));
+  updateFoldAll();
+};
+
 function renderList(month) {
   const list = $('list');
   list.innerHTML = '';
-  let lastDate = '';
+  if (dayStateMonth !== ym(cur)) { dayState.clear(); dayStateMonth = ym(cur); }   // 달을 옮기면 기본 상태로
+  const byDay = new Map();   // month는 최신순이라 날짜 순서가 그대로 유지된다
   for (const i of month) {
-    if (i.date !== lastDate) {
-      lastDate = i.date;
-      list.appendChild(dayHead(i.date, month));
-    }
-    list.appendChild(itemEl(i));
+    if (!byDay.has(i.date)) byDay.set(i.date, []);
+    byDay.get(i.date).push(i);
+  }
+  for (const [date, dayItems] of byDay) {
+    if (dayItems.some((i) => freshIds.has(i.id))) dayState.set(date, true);
+    list.appendChild(dayBlock(date, dayItems));
   }
   $('empty').hidden = month.length > 0;
 }
@@ -261,7 +325,9 @@ function renderStats(period, out, yearView) {
   const stats = $('stats');
   stats.innerHTML = '';
   if (!rows.length) stats.innerHTML = '<li class="plain">지출 내역이 없어요.</li>';
-  for (const [cat, amt] of rows) {
+  // 도넛에서 고른 카테고리는 선택된 동안만 목록 맨 위로 올려서, 아래로 스크롤하지 않아도 바로 보이게 한다
+  const ordered = selCat ? [rows.find(([c]) => c === selCat), ...rows.filter(([c]) => c !== selCat)] : rows;
+  for (const [cat, amt] of ordered) {
     const li = document.createElement('li');
     li.dataset.cat = cat;
     if (cat === selCat) li.classList.add('sel');

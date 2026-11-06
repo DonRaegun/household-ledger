@@ -70,6 +70,27 @@ function nowTime() {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// 시각('HH:MM')을 오전/오후 표기로, 그리고 돌려서 고르는 칸(오전·오후, 1~12시, 분)과 서로 바꾼다
+function timeLabel(v) {
+  if (!TIME_RE.test(v || '')) return '';
+  const [h, m] = v.split(':').map(Number);
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${pad(m)}`;
+}
+// 날짜('YYYY-MM-DD')를 '2026년 11월 6일 (금)'으로, 그리고 그 달의 일수(m은 1~12)
+const daysInMonth = (y, m) => new Date(y, m, 0).getDate();
+function dateLabel(v, showYear = true) {
+  if (!DATE_RE.test(v || '')) return '';
+  const d = parseDate(v);
+  return `${showYear ? d.getFullYear() + '년 ' : ''}${d.getMonth() + 1}월 ${d.getDate()}일 (${'일월화수목금토'[d.getDay()]})`;
+}
+function timeToWheel(v) {
+  const [h, m] = v.split(':').map(Number);
+  return { ap: h >= 12 ? 1 : 0, h12: h % 12 || 12, m };
+}
+function wheelToTime(ap, h12, m) {
+  return `${pad((h12 % 12) + ap * 12)}:${pad(m)}`;
+}
+
 // 내역 검색: 띄어 쓴 낱말이 모두 들어 있는 내역을 최신순으로. 메모·카테고리·결제수단·소비 성격·날짜·금액에서 찾는다.
 // 금액은 '12000', '12,000', '12,000원' 어느 쪽으로 써도 찾고, 날짜는 '2026-11'이나 '2026-11-03'처럼 쓴다.
 const searchText = (s) => String(s || '').toLowerCase();

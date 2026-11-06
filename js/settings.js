@@ -5,7 +5,6 @@ function dayOptions(first) {
     Array.from({ length: 31 }, (_, k) => `<option value="${k + 1}">${k + 1}일</option>`).join('');
 }
 $('card-day').innerHTML = dayOptions('설정 안 함');
-$('fday').innerHTML = dayOptions().replace(/(\d+)일</g, '$1<');
 $('card-start').innerHTML = dayOptions();
 $('card-day').onchange = (e) => {
   settings.cardDay = Number(e.target.value) || null;
@@ -16,7 +15,42 @@ $('card-start').onchange = (e) => {
   saveSettings(); render();
 };
 
+// ---- 화면 모드 (자동 / 밝게 / 어둡게) ----
+const THEME_COLOR = { light: '#f4f5f0', dark: '#0a0c13' };
+const TB = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
+  ? window.Capacitor.Plugins.ThemeBars : null;   // 안드로이드: 위·아래 시스템 막대의 아이콘 색을 앱 모드에 맞춘다
+const prefersDark = () => !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+function applyTheme(animate) {
+  const t = settings.theme;
+  const root = document.documentElement;
+  if (animate) {
+    root.classList.add('theme-fade');   // 색이 서서히 바뀌게 잠깐만 켜 둔다
+    setTimeout(() => root.classList.remove('theme-fade'), 400);
+  }
+  if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+  const dark = t === 'dark' || (t === 'auto' && prefersDark());
+  // 브라우저 위쪽 색(theme-color): 자동일 때는 폰 모드에 따라 고르도록 원래 쌍을 두고, 직접 골랐으면 그 색 하나로 맞춘다
+  document.querySelectorAll('meta[name=theme-color]').forEach((m) => {
+    m.content = t === 'auto' ? THEME_COLOR[/dark/.test(m.media) ? 'dark' : 'light'] : THEME_COLOR[dark ? 'dark' : 'light'];
+  });
+  if (TB) TB.setDark({ mode: t }).catch(() => {});
+}
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (settings.theme === 'auto') applyTheme(); });
+document.querySelectorAll('#theme-mode button').forEach((b) => (b.onclick = () => {
+  if (settings.theme === b.dataset.theme) return;
+  settings.theme = b.dataset.theme;
+  saveSettings();
+  applyTheme(true);
+  renderSettings();
+}));
+applyTheme();
+
 function renderSettings() {
+  document.querySelectorAll('#theme-mode button').forEach((b) => {
+    const on = b.dataset.theme === settings.theme;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
   renderNpLast();
   renderAutoBackup();
   $('auto-apply').checked = settings.autoApply;
@@ -67,6 +101,13 @@ function openWithFocus(dlg, first) {
   else dlg.focus();
 }
 
+// 고정지출의 '매달 며칠': 숨은 값(숫자)은 그대로 두고 버튼에는 '매달 6일'로 보여 준다. 누르면 돌려서 고르는 창이 열린다
+function setFday(d) {
+  $('fday').value = d;
+  $('fday-btn').textContent = `매달 ${d}일`;
+}
+$('fday-btn').onclick = () => openDayPicker(Number($('fday').value), setFday);
+
 function openFixed(f) {
   fEditing = f || null;
   $('fdlg-title').textContent = f ? '고정지출 수정' : '고정지출 추가';
@@ -75,7 +116,7 @@ function openFixed(f) {
   $('fname').value = f ? f.name : '';
   $('famount').value = f ? f.amount.toLocaleString('ko-KR') : '';
   document.querySelector(`input[name=fpay][value=${f ? f.pay : settings.lastPay}]`).checked = true;
-  $('fday').value = f ? f.day : new Date().getDate();
+  setFday(f ? f.day : new Date().getDate());
   $('fsub').checked = !!(f && f.sub);
   const fm = f ? f.mood || '' : 'need';   // 새 고정지출은 '필수'가 기본
   document.querySelectorAll('input[name=fmood]').forEach((r) => (r.checked = r.value === fm));

@@ -1,4 +1,16 @@
 // 공통 이벤트와 내역 입력 창
+// ---- 화면 전환 효과 ----
+// 바뀐 화면(또는 일부)이 부드럽게 나타나게 한다. cls: fade-in(살짝 올라오며) | from-right | from-left | slide-in(아래에서)
+function playIn(el, cls) {
+  if (!el) return;
+  ['fade-in', 'from-right', 'from-left', 'slide-in'].forEach((c) => el.classList.remove(c));
+  void el.offsetWidth;   // 같은 효과를 처음부터 다시 재생하려고
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+}
+// 지금 보이는 본문 영역 (탭, 목록/달력에 따라 다르다)
+const activePane = () => tab === 'list' ? $(listMode === 'cal' ? 'view-cal' : 'list-wrap') : $('view-' + tab);
+
 // ---- 공통 이벤트 ----
 function toggleCat(cat) {
   selCat = selCat === cat ? null : cat;
@@ -28,15 +40,30 @@ $('cal-grid').addEventListener('click', (e) => {
   render();
 });
 
-document.querySelectorAll('#list-mode button').forEach((b) => (b.onclick = () => { listMode = b.dataset.lmode; render(); }));
-document.querySelectorAll('#stats-mode button').forEach((b) => (b.onclick = () => { statsMode = b.dataset.mode; selCat = null; render(); }));
-document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; selCat = null; render(); }));
+// 목록 <-> 달력: 토글을 눌러 실제로 바뀔 때만 새로 보이는 쪽이 아래에서 살짝 올라오며 나타난다 (월 이동·내역 수정 때는 움직이지 않는다)
+document.querySelectorAll('#list-mode button').forEach((b) => (b.onclick = () => {
+  const changed = listMode !== b.dataset.lmode;
+  listMode = b.dataset.lmode;
+  render();
+  if (changed) playIn(activePane(), 'slide-in');
+}));
+document.querySelectorAll('#stats-mode button').forEach((b) => (b.onclick = () => {
+  const changed = statsMode !== b.dataset.mode;
+  statsMode = b.dataset.mode; selCat = null; render();
+  if (changed) playIn($('view-stats'), 'fade-in');
+}));
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => {
+  const changed = tab !== b.dataset.tab;
+  tab = b.dataset.tab; selCat = null; render();
+  if (changed) playIn(activePane(), 'fade-in');
+}));
 
 function move(step) {
   if (tab === 'stats' && statsMode === 'year') cur = new Date(cur.getFullYear() + step, cur.getMonth(), 1);
   else cur = new Date(cur.getFullYear(), cur.getMonth() + step, 1);
   selCat = null;
   render();
+  playIn(activePane(), step > 0 ? 'from-right' : 'from-left');
 }
 $('prev').onclick = () => move(-1);
 $('next').onclick = () => move(1);
@@ -78,27 +105,33 @@ $('mp-grid').addEventListener('click', (e) => {
   selCat = null; selDay = null;
   $('mdlg').close();
   render();
+  playIn(activePane(), 'fade-in');
 });
 $('mp-today').onclick = () => { cur = new Date(); cur.setDate(1); selCat = null; selDay = null; $('mdlg').close(); render(); };
 $('mp-close').onclick = () => $('mdlg').close();
 
+// 카테고리는 드롭다운 대신 버튼으로 모두 보여 줘서 한 번에 고른다 (값은 숨은 select가 들고 있다). 내역 추가와 고정지출 창이 같이 쓴다
+const CHIPS_OF = { category: 'cat-chips', fcategory: 'fcat-chips' };   // select id -> 버튼 묶음 id
 function fillCategories(id, type, selected) {
   $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
   if (selected) $(id).value = selected;
-  if (id === 'category') renderCatChips();
+  renderCatChips(id);
 }
-// 내역 입력 창의 카테고리는 드롭다운 대신 버튼으로 모두 보여 줘서 한 번에 고른다 (값은 숨은 select가 들고 있다)
-function renderCatChips() {
-  const cur = $('category').value;
-  $('cat-chips').innerHTML = Array.from($('category').options).map((o) =>
+function renderCatChips(id = 'category') {
+  const cur = $(id).value;
+  $(CHIPS_OF[id]).innerHTML = Array.from($(id).options).map((o) =>
     `<button type="button" role="radio" aria-checked="${o.value === cur}" data-cat="${o.value}" class="${o.value === cur ? 'on' : ''}">${o.value}</button>`).join('');
 }
-$('cat-chips').addEventListener('click', (e) => {
+Object.entries(CHIPS_OF).forEach(([id, chipsId]) => $(chipsId).addEventListener('click', (e) => {
   const b = e.target.closest('button[data-cat]');
   if (!b) return;
-  $('category').value = b.dataset.cat;
-  renderCatChips();
-});
+  $(id).value = b.dataset.cat;
+  $(chipsId).querySelectorAll('button').forEach((x) => {   // 다시 만들지 않고 표시만 바꿔서 색이 부드럽게 바뀌게 한다
+    const on = x === b;
+    x.classList.toggle('on', on);
+    x.setAttribute('aria-checked', String(on));
+  });
+}));
 
 function bindMoney(el) {
   el.addEventListener('input', (e) => {
@@ -126,11 +159,11 @@ function openDialog(item) {
   document.querySelectorAll('input[name=mood]').forEach((r) => (r.checked = r.value === mood));
   $('amount').value = item ? item.amount.toLocaleString('ko-KR') : '';
   const date = item ? item.date : (listMode === 'cal' && selDay) || today();
-  $('date').value = date;
+  setDateValue(date);
   // 새 내역은 지금 시각을 채워 두고(오늘 날짜일 때만), 예전 내역은 있는 값 그대로 둔다
-  $('time').value = item ? item.time || '' : date === today() ? nowTime() : '';
+  setTimeValue(item ? item.time || '' : date === today() ? nowTime() : '');
   $('time').dataset.auto = item ? '0' : '1';
-  $('time').hidden = type !== 'out';
+  $('time-btn').hidden = type !== 'out';
   $('memo').value = item ? item.memo : '';
   setMore(!!item);          // 새 내역은 접어 두고(기본값으로 저장), 수정할 때는 값이 보이게 펼친다
   updateMoreSum();
@@ -140,17 +173,38 @@ function openDialog(item) {
 document.querySelectorAll('input[name=type]').forEach((r) =>
   r.addEventListener('change', () => {
     fillCategories('category', r.value);
+    playIn($('cat-chips'), 'fade-in');
     $('pay-seg').hidden = r.value !== 'out';
     $('mood-seg').hidden = r.value !== 'out';
-    $('time').hidden = r.value !== 'out';
+    $('time-btn').hidden = r.value !== 'out';
     updateMoreSum();
   }));
 
 // 시각을 직접 고치기 전까지는 날짜에 맞춰 자동값을 유지한다 (지난 날짜를 입력할 때 지금 시각이 남지 않게)
-$('date').addEventListener('change', () => {
-  if ($('time').dataset.auto === '1') $('time').value = $('date').value === today() ? nowTime() : '';
+function setDateValue(v) {
+  $('date').value = v || '';
+  const b = $('date-btn');
+  // 올해 날짜는 연도를 빼서 짧게 (좁은 칸에서 두 줄로 접히지 않게)
+  b.textContent = dateLabel(v, !v || v.slice(0, 4) !== String(new Date().getFullYear())) || '날짜 선택';
+  b.classList.toggle('empty', !v);
+}
+$('date-btn').onclick = () => openDatePicker($('date').value || today(), (v) => {
+  setDateValue(v);
+  if ($('time').dataset.auto === '1') setTimeValue(v === today() ? nowTime() : '');
+  updateMoreSum();
 });
-$('time').addEventListener('input', () => { $('time').dataset.auto = '0'; });
+// 시각 칸: 숨은 값(HH:MM)은 그대로 두고, 눈에 보이는 버튼에는 '오후 3:05'처럼 보여 준다. 누르면 돌려서 고르는 창이 열린다
+function setTimeValue(v) {
+  $('time').value = v || '';
+  const b = $('time-btn');
+  b.textContent = timeLabel(v) || '시각 선택';
+  b.classList.toggle('empty', !v);
+}
+$('time-btn').onclick = () => openTimePicker($('time').value, (v) => {
+  $('time').dataset.auto = '0';   // 직접 골랐으니 날짜를 바꿔도 자동으로 덮어쓰지 않는다
+  setTimeValue(v);
+  updateMoreSum();
+});
 
 // '더보기': 결제수단, 소비 성격, 날짜, 시각은 접어 두고, 접힌 동안은 저장될 값을 한 줄로 보여준다
 function setMore(open) {

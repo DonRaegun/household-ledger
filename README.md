@@ -73,7 +73,7 @@ npx serve .
 | --- | --- |
 | `index.html` | 화면 구조 (스크립트를 아래 순서로 불러와요) |
 | `style.css` | 스타일 |
-| `js/` | 기능별로 나눈 스크립트 17개 (아래 표) |
+| `js/` | 기능별로 나눈 스크립트 18개 (아래 표) |
 | `tests/` | 문자·알림 해석, 중복 판정, 공휴일 시험 (`npm test`) |
 | `sw.js` | 서비스 워커 (오프라인, 네트워크 우선 캐시) |
 | `manifest.json` | PWA 설정 (홈 화면 설치, 공유 대상 등록) |
@@ -94,6 +94,7 @@ npx serve .
 | `fixed.js` | 고정지출, 카드 출금 예정 |
 | `settings.js` | 설정 탭, 고정지출 창 |
 | `dialogs.js` | 내역 입력 창과 공통 이벤트 |
+| `picker.js` | 돌려서 고르는 창: 시각, 날짜, 고정지출의 매달 며칠 (변환은 `core.js`) |
 | `search.js` | 내역 검색 창 (찾는 규칙은 `core.js`의 `searchItems`) |
 | `ics.js` | 캘린더 알림 파일(.ics) |
 | `sms-ui.js` | 문자 입력 창 |

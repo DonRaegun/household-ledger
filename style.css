@@ -8,9 +8,11 @@
   --sum-bg: linear-gradient(155deg, #ffffff 0%, #f1f3fb 100%);
   --glow: rgba(74, 120, 245, .16);
   --shade: rgba(20, 24, 40, .45);
+  color-scheme: light;   /* 입력칸·스크롤 막대 같은 기본 부품도 같은 모드로 */
 }
+/* 화면 모드: 자동(폰의 다크 모드를 따라감) / 밝게 / 어둡게. 앱에서 고르면 html에 data-theme이 붙는다 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #0a0c13; --card: #141826; --text: #f1f3fa; --sub: #98a0b5;
     --line: rgba(255, 255, 255, .08); --primary: #7ba2ff; --in: #3fd69a; --out: #ff7078; --sat: #86abff;
     --btn: linear-gradient(135deg, #4a78f5, #6b5cf2);
@@ -19,7 +21,19 @@
     --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
     --glow: rgba(107, 92, 242, .30);
     --shade: rgba(2, 4, 10, .66);
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #0a0c13; --card: #141826; --text: #f1f3fa; --sub: #98a0b5;
+    --line: rgba(255, 255, 255, .08); --primary: #7ba2ff; --in: #3fd69a; --out: #ff7078; --sat: #86abff;
+    --btn: linear-gradient(135deg, #4a78f5, #6b5cf2);
+    --hdr: rgba(10, 12, 19, .82);
+    --elev: 0 10px 28px rgba(0, 0, 0, .42);
+    --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
+    --glow: rgba(107, 92, 242, .30);
+    --shade: rgba(2, 4, 10, .66);
+    color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
@@ -44,7 +58,7 @@ header h1 button {
   font-size: 17px; font-weight: 700; padding: 7px 16px; border-radius: 999px;
   background: var(--card); border: 1px solid var(--line); letter-spacing: -.2px;
 }
-header h1 button::after { content: ' ▾'; font-size: 11px; color: var(--primary); }
+header h1 button::after { content: '▾'; margin-left: 6px; font-size: 16px; line-height: 1; vertical-align: -1px; color: var(--primary); }
 header h1 button:disabled::after { content: ''; }
 header h1 button:disabled { color: inherit; cursor: default; opacity: 1; background: transparent; border-color: transparent; }
 .mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -430,3 +444,113 @@ details.fold[open] { padding-bottom: 14px; }
 #qdlg #q::placeholder { color: var(--sub); }
 #qdlg #q:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
 #cmp b { font-size: 22px; }
+
+/* ---- 통계: 선택한 카테고리는 테두리와 빛으로 눈에 띄게 (목록 맨 위로 올라온다) ---- */
+#stats li.sel { outline: none; border-color: var(--primary); background: var(--sum-bg); box-shadow: 0 0 0 1px var(--primary), 0 10px 26px var(--glow); }
+#stats li.sel em { font-weight: 700; }
+
+/* ---- 목록 <-> 달력 전환: 아래에서 살짝 올라오며 나타난다 ---- */
+.slide-in { animation: slide-up .26s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes slide-up { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slide-in { animation: none; } }
+#ab-section { margin-bottom: 10px; }   /* 자동 백업 칸과 아래 버튼들이 붙어 보이지 않게 */
+
+/* ---- 전체적으로 부드러운 전환 ---- */
+main { overflow-x: clip; }   /* 옆에서 들어올 때 가로 스크롤 막대가 생기지 않게 */
+
+/* 선택된 칸의 파란 그라데이션은 색이 아니라 겹친 층이라서, 층의 투명도를 바꿔서 서서히 나타나게 한다 */
+.toggle button, .chips button, .seg span, #mp-grid button { position: relative; z-index: 0; transition: color .22s ease, border-color .22s ease; }
+.toggle button::before, .chips button::before, .seg span::before, #mp-grid button::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background: var(--btn); opacity: 0; transition: opacity .22s ease;
+}
+.toggle button.active::before, .chips button.on::before, .seg input:checked + span::before, #mp-grid button.on::before { opacity: 1; }
+/* 위쪽 규칙이 바로 그라데이션을 깔던 것을 막는다 (층이 대신한다) */
+.toggle button.active { background: transparent; }
+.chips button.on { background: var(--bg); }
+.seg input:checked + span { background: var(--bg); }
+#mp-grid button.on { background: var(--card); }
+
+/* 아래 탭: 막대가 사라지고 나타나는 대신 늘어나고 줄어든다 */
+nav button { transition: color .2s ease; }
+nav button::before {
+  content: ''; position: absolute; top: 0; left: 50%; width: 22px; height: 3px; margin-left: -11px;
+  border-radius: 0 0 3px 3px; background: var(--btn); transform: scaleX(0); opacity: 0;
+  transition: transform .25s ease, opacity .25s ease;
+}
+nav button.active::before { transform: scaleX(1); opacity: 1; }
+
+/* 눌렀을 때 살짝 들어가는 느낌 */
+button { transition: transform .12s ease, color .2s ease; }
+button:active:not(:disabled) { transform: scale(.97); }
+#fab { transition: transform .2s ease, opacity .2s ease; }   /* 위 규칙이 + 버튼의 숨김 동작을 덮지 않게 */
+li.item { transition: transform .12s ease; }
+li.item:active { transform: scale(.985); }
+
+/* 새로 보이는 화면: 살짝 올라오며(탭·월별/연별), 옆에서(월 이동) */
+.fade-in { animation: fade-up .24s ease both; }
+.from-right { animation: from-right .26s cubic-bezier(.2, .8, .2, 1) both; }
+.from-left { animation: from-left .26s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes from-right { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+@keyframes from-left { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+
+/* 창이 열릴 때 */
+dialog[open] { animation: dlg-in .24s cubic-bezier(.2, .8, .2, 1) both; }
+dialog[open]::backdrop { animation: fade-bg .24s ease both; }
+@keyframes dlg-in { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes fade-bg { from { opacity: 0; } to { opacity: 1; } }
+
+/* 폰의 '애니메이션 줄이기'를 켰으면 모든 움직임을 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .from-right, .from-left, .slide-in, dialog[open], dialog[open]::backdrop { animation: none; }
+  .toggle button, .chips button, .seg span, #mp-grid button, nav button, button, li.item,
+  .toggle button::before, .chips button::before, .seg span::before, #mp-grid button::before, nav button::before { transition: none; }
+}
+
+/* ---- 내역: 날짜별 접기·펼치기 ---- */
+.lb-left { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+#list-count { flex: none; }
+#fold-all { background: none; padding: 6px 8px; font-size: 13px; color: var(--primary); }
+.day-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 14px 6px 7px;
+  background: none; border-radius: 10px; text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .2px; color: var(--sub);
+}
+.day-head .chev { display: inline-block; width: 10px; font-style: normal; font-size: 16px; line-height: 1; transition: transform .22s ease; }
+.dayblock.open .day-head .chev { transform: rotate(90deg); }
+.day-head .day-n { flex: 1; font-weight: 500; opacity: .75; }
+.day-head .day-sum { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.day-head .day-sum.in { color: var(--in); }
+/* 높이를 0fr -> 1fr로 바꿔서 부드럽게 접고 펼친다 */
+.day-body { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .26s ease, visibility 0s .26s; }
+.dayblock.open .day-body { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows .26s ease, visibility 0s; }
+.day-body > ul { min-height: 0; overflow: hidden; padding: 2px 4px 16px; margin: -2px -4px -10px; }   /* 카드 그림자가 잘리지 않을 만큼의 여백 */
+@media (prefers-reduced-motion: reduce) { .day-body, .dayblock.open .day-body, .day-head .chev { transition: none; } }
+
+/* ---- 화면 모드를 바꿀 때 색이 서서히 바뀌게 ---- */
+.theme-fade, .theme-fade * { transition: background-color .3s ease, color .3s ease, border-color .3s ease, box-shadow .3s ease !important; }
+@media (prefers-reduced-motion: reduce) { .theme-fade, .theme-fade * { transition: none !important; } }
+#theme-mode { margin-bottom: 0; }
+
+/* ---- 시각 칸과 돌려서 고르는 창 (갤럭시 시계 느낌) ---- */
+/* 누르면 돌려서 고르는 창이 열리는 칸 (시각, 날짜, 매달 며칠) */
+.pick-btn {
+  flex: 1; min-width: 0; width: 100%; margin-bottom: 10px; padding: 13px 14px; border-radius: 14px; text-align: left;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.pick-btn.empty { color: var(--sub); }
+#pdlg { width: min(88vw, 340px); }
+.wheels { position: relative; display: flex; align-items: center; justify-content: center; gap: 2px; height: 240px; margin: 6px 0 16px; }
+.wheel-band { position: absolute; left: 0; right: 0; top: 50%; height: 48px; transform: translateY(-50%); border-radius: 16px; background: var(--bg); border: 1px solid var(--line); }
+.wheel {
+  position: relative; z-index: 1; flex: 1; height: 100%; padding: 96px 0; overflow-y: auto; overscroll-behavior: contain;
+  scroll-snap-type: y mandatory; scrollbar-width: none; touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel div { height: 48px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; cursor: pointer; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--sub); transition: color .15s, font-size .15s; }
+.wheel div.on { font-size: 30px; font-weight: 700; color: var(--text); }
+.wheels .colon { position: relative; z-index: 1; font-size: 30px; font-weight: 700; line-height: 1; padding-bottom: 4px; }
+
+#pdlg .hint { margin: -6px 4px 12px; }
+#date-btn { flex: 1.15; }   /* 날짜 글자가 시각보다 길어서 조금 더 넓게 */
