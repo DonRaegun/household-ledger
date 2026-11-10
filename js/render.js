@@ -553,11 +553,10 @@ function renderStats(period, out, yearView) {
   const byPay = { cash: 0, card: 0, transfer: 0, none: 0 };
   const splitNote = showNet && settleTotal ? (leftover ? `정산 ${won(settleTotal - leftover)}을 뺀 금액이에요 (카테고리를 정하지 않은 정산은 빼지 않았어요)` : `정산 ${won(settleTotal)}을 뺀 금액이에요`) : '';
   const wgt = (i) => (showNet && ratioByCat[i.category] !== undefined ? ratioByCat[i.category] : 1);   // 실지출 보기: 정산을 뺀 만큼 줄인 몫
-  outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount * wgt(i)));
-  Object.keys(byPay).forEach((k) => { byPay[k] = Math.round(byPay[k]); });
+  outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount));   // 결제수단별은 돈이 나간 방식이라 정산을 빼지 않는다 (카드 값과 맞추려고)
   // 결제수단이 한 종류뿐이면 "카드 100%"가 되어 정보가 없으므로, 두 종류 이상일 때만 보여준다
   $('pay-wrap').hidden = new Set(outs.map((i) => (PAY[i.pay] ? i.pay : 'none'))).size < 2;
-  $('pay-stats').innerHTML = splitBar([...Object.keys(PAY), 'none'].map((k) => ({ label: PAY[k] || '미지정', amt: byPay[k], color: PAY_COLORS[k] })), Object.values(byPay).reduce((s, v) => s + v, 0), splitNote);
+  $('pay-stats').innerHTML = splitBar([...Object.keys(PAY), 'none'].map((k) => ({ label: PAY[k] || '미지정', amt: byPay[k], color: PAY_COLORS[k] })), Object.values(byPay).reduce((s, v) => s + v, 0), showNet && settleTotal ? '정산은 빼지 않은 값이에요 (카드 값과 맞추려고)' : '');
 
   // 소비 평가별 합계 (평가를 한 번도 고르지 않았으면 이 영역 자체를 보이지 않는다)
   const byMood = { need: 0, want: 0, regret: 0, none: 0 };
