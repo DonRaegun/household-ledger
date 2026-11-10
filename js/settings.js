@@ -13,7 +13,7 @@ $('card-start-btn').onclick = () => openOptionPicker({
 });
 
 // ---- 화면 모드 (자동 / 밝게 / 어둡게) ----
-const THEME_COLOR = { light: '#f4f5f0', dark: '#0a0c13' };
+const THEME_COLOR = { light: '#e9edf2', dark: '#0a0c13' };
 const TB = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()
   ? window.Capacitor.Plugins.ThemeBars : null;   // 안드로이드: 위·아래 시스템 막대의 아이콘 색을 앱 모드에 맞춘다
 const prefersDark = () => !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -49,6 +49,9 @@ function renderSettings() {
   });
   renderNpLast();
   renderAutoBackup();
+  const pre = readPreRestore();   // 백업을 불러온 적이 있으면 불러오기 전 상태로 되돌리는 버튼을 보여 준다
+  $('undo-import').hidden = !pre;
+  if (pre) $('undo-import').textContent = `백업 불러오기 되돌리기 (${Number(pre.at.slice(5, 7))}월 ${Number(pre.at.slice(8))}일 교체 전)`;
   $('auto-apply').checked = settings.autoApply;
   $('remind-days-btn').textContent = REMIND_LABELS[settings.remindDays];
   $('ics-card').disabled = !settings.cardDay;
@@ -193,3 +196,22 @@ document.querySelectorAll('details.fold, details.more').forEach((d) => {
     }
   });
 });
+
+// ---- 월 예산 입력 ----
+function openBudget() {
+  $('bamount').value = settings.budget ? settings.budget.toLocaleString('ko-KR') : '';
+  $('bamount').refreshRead();
+  $('bdel').hidden = !settings.budget;
+  openWithFocus($('bdlg'), $('bamount'));
+}
+$('bd-edit').onclick = openBudget;
+$('bcancel').onclick = () => $('bdlg').close();
+$('bform').addEventListener('submit', () => {
+  settings.budget = Number($('bamount').value.replace(/\D/g, '')) || 0;
+  saveSettings(); render();
+});
+$('bdel').onclick = async () => {
+  if (await ask('월 예산을 없앨까요? 남은 돈 표시가 사라져요.', { yes: '없애기', danger: true })) {
+    settings.budget = 0; saveSettings(); render(); $('bdlg').close();
+  }
+};

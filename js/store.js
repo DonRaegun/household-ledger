@@ -102,6 +102,7 @@ function cleanFixed(f) {
 function normSettings(s) {
   s = s && typeof s === 'object' ? s : {};
   return {
+    budget: Number(s.budget) > 0 ? Math.round(Number(s.budget)) : 0,   // 월 예산 (0이면 쓰지 않는다)
     npDismissed: s.npDismissed === true,   // '결제 알림 자동 읽기를 켜세요' 안내를 닫았는지
     theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',   // 화면 모드: 폰 설정을 따라감 / 밝게 / 어둡게
     autoApply: s.autoApply !== false,      // 확실한 결제 알림을 확인 없이 가계부에 넣을지 (기본: 켬)

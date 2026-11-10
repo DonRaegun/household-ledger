@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f4f5f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#e9edf2" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0a0c13" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
@@ -80,6 +80,13 @@
           <span id="wk-label"></span>
           <div id="wk-chart" class="yc-box"></div>
         </div>
+        <div class="cmp-slide cmp-bd" id="cmp-s3">
+          <div class="bd-top"><span id="bd-label">이번 달 예산</span><button type="button" id="bd-edit" class="bd-edit"></button></div>
+          <b id="bd-main" class="bd-main"></b>
+          <div class="bd-bar"><i id="bd-fill"></i></div>
+          <small id="bd-detail" class="bd-line"></small>
+          <small id="bd-day" class="bd-line"></small>
+        </div>
         <div class="cmp-slide" id="cmp-s1">
           <span id="cmp-label"></span>
           <b id="cmp-diff"></b>
@@ -101,6 +108,7 @@
     </div>
     <div id="mood-wrap" hidden>
       <h2>소비 평가별 지출</h2>
+      <p class="hint mood-hint">필수는 꼭 필요했던 지출, 선택은 안 써도 됐던 지출, 후회는 쓰고 나서 아쉬웠던 지출이에요.</p>
       <ul id="mood-stats"></ul>
     </div>
   </section>
@@ -174,6 +182,7 @@
       <button id="export-csv">CSV 내보내기</button>
       <button id="export-json">백업(JSON)</button>
       <button id="import-json">백업 불러오기</button>
+      <button id="undo-import" hidden></button>
       <input type="file" id="import-file" accept="application/json" hidden>
     </div>
 
@@ -241,6 +250,7 @@
           <label><input type="radio" name="mood" value="want"><span>선택</span></label>
           <label><input type="radio" name="mood" value="regret"><span>후회</span></label>
         </div>
+        <p class="hint mood-hint">필수는 꼭 필요했던 지출, 선택은 안 써도 됐던 지출, 후회는 쓰고 나서 아쉬웠던 지출이에요.</p>
       </div>
       <div class="two">
         <input id="date" type="hidden">
@@ -286,6 +296,23 @@
 </dialog>
 
 <!-- 이전 내역: 화면 전체를 쓰는 페이지처럼 보이지만 dialog라서 뒤로가기·닫기·위에 뜨는 수정 창이 그대로 동작한다 -->
+<dialog id="bdlg" tabindex="-1" data-guard>
+  <form id="bform" method="dialog">
+    <h2>월 예산</h2>
+    <p class="hint">한 달에 쓸 돈을 정하면 남은 돈과 하루에 쓸 수 있는 돈을 알려 드려요. 정산으로 돌려받은 돈은 뺀 지출로 계산해요.</p>
+    <div class="money">
+      <input id="bamount" type="text" inputmode="numeric" placeholder="예: 600,000" autocomplete="off">
+      <span class="unit" aria-hidden="true">원</span>
+    </div>
+    <p class="won-read" id="bamount-read" aria-live="polite"></p>
+    <div class="row">
+      <button type="button" id="bdel" class="danger" hidden>예산 없애기</button>
+      <button type="button" id="bcancel">취소</button>
+      <button type="submit" class="primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="hdlg" class="page" tabindex="-1" aria-label="이전 내역">
   <div class="pg-top">
     <button type="button" id="h-close" class="pg-back" aria-label="내역으로 돌아가기"><i aria-hidden="true">‹</i> 내역</button>
@@ -345,6 +372,7 @@
       <label><input type="radio" name="fmood" value="want"><span>선택</span></label>
       <label><input type="radio" name="fmood" value="regret"><span>후회</span></label>
     </div>
+    <p class="hint mood-hint">필수는 꼭 필요했던 지출, 선택은 안 써도 됐던 지출, 후회는 쓰고 나서 아쉬웠던 지출이에요.</p>
     <input id="fday" type="hidden">
     <button type="button" class="pick-btn" id="fday-btn" aria-label="매달 며칠"></button>
     <div class="row">

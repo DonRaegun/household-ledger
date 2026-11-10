@@ -388,3 +388,18 @@ test('주별 지출: 실지출 보기는 그 주에 돌려받은 정산을 뺀�
   assert.deepEqual(gross, [60000, 0, 1000, 0]);
   assert.deepEqual(net, [20000, 0, 0, 0]);
 });
+
+test('월 예산: 남은 돈, 쓴 비율, 하루에 쓸 수 있는 돈', () => {
+  const b = (spent, budget, y, m, t) => app.run(`budgetStatus(${spent}, ${budget}, new Date(${y}, ${m}, 1), '${t}')`);
+  // 이번 달(11월) 3일: 오늘 포함 28일 남음. 남은 돈 258,000 -> 하루 9,200원(100원 단위 내림)
+  const now = b(342000, 600000, 2026, 10, '2026-11-03');
+  assert.deepEqual([now.left, now.over, now.daysLeft, now.perDay], [258000, false, 28, 9200]);
+  assert.equal(Math.round(now.ratio * 100), 57);
+  // 예산을 넘으면 남은 돈은 음수, 하루 가능 금액은 0
+  const over = b(650000, 600000, 2026, 10, '2026-11-03');
+  assert.deepEqual([over.left, over.over, over.perDay], [-50000, true, 0]);
+  // 지난 달은 남은 날이 없고, 다음 달은 한 달 전체(30일)로 나눈다
+  assert.equal(b(100000, 600000, 2026, 9, '2026-11-03').daysLeft, 0);
+  const next = b(0, 300000, 2026, 10, '2026-10-20');
+  assert.deepEqual([next.daysLeft, next.perDay], [30, 10000]);
+});

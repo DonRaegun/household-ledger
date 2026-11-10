@@ -1,13 +1,18 @@
-/* 색은 모두 여기 변수에서 정한다. 밝은 모드는 따뜻한 종이색, 어두운 모드는 깊은 남색 계열 */
+/* 색은 모두 여기 변수에서 정한다. 밝은 모드는 차분한 네이비 블루그레이, 어두운 모드는 깊은 남색 계열 */
 :root {
-  --bg: #f4f5f0; --card: #ffffff; --text: #1b1e2b; --sub: #6b7080;
-  --line: #e6e7df; --primary: #3563e9; --in: #16a05d; --out: #e0484f; --sat: #3563e9;
-  --btn: linear-gradient(135deg, #4a78f5, #6657f0);        /* 채워진 버튼·선택 상태 */
-  --hdr: rgba(244, 245, 240, .84);                          /* 위 막대, 아래 탭 */
-  --elev: 0 1px 2px rgba(27, 30, 43, .04), 0 8px 22px rgba(27, 30, 43, .06);
-  --sum-bg: linear-gradient(155deg, #ffffff 0%, #f1f3fb 100%);
-  --glow: rgba(74, 120, 245, .16);
-  --shade: rgba(20, 24, 40, .45);
+  /* 밝은 모드: 차분한 네이비 블루그레이 (순백 대신 밝은 블루그레이 바탕, 채도를 낮춘 파랑, 보라 없음) */
+  --bg: #e9edf2; --card: #f5f7fa; --text: #202938; --sub: #5f6878;
+  --line: #d3dae4; --primary: #496796; --in: #23704f; --out: #ab4852; --sat: #3a66aa;
+  --btn: linear-gradient(135deg, #48658f, #526f98);        /* 채워진 버튼·선택 상태 */
+  --hdr: rgba(233, 237, 242, .86);                          /* 위 막대, 아래 탭 */
+  --elev: 0 1px 2px rgba(32, 41, 56, .04), 0 6px 18px rgba(32, 41, 56, .05);
+  --sum-bg: linear-gradient(155deg, #f5f7fa 0%, #e9eef5 100%);
+  --glow: rgba(73, 103, 150, .14);
+  --shade: rgba(20, 28, 44, .45);
+  /* 뜻이 있는 색의 옅은 배경(칩, 방금 들어온 내역): 위 강조·수입·지출 색과 같은 계열 */
+  --tint-pri: rgba(73, 103, 150, .14); --tint-in: rgba(35, 112, 79, .14); --tint-out: rgba(171, 72, 82, .14);
+  --fresh: rgba(73, 103, 150, .22); --fresh-ring: rgba(73, 103, 150, .5);
+  --warn: #b0722a;   /* 예산 80% 넘음 */
   color-scheme: light;   /* 입력칸·스크롤 막대 같은 기본 부품도 같은 모드로 */
 }
 /* 화면 모드: 자동(폰의 다크 모드를 따라감) / 밝게 / 어둡게. 앱에서 고르면 html에 data-theme이 붙는다 */
@@ -20,6 +25,9 @@
     --elev: 0 10px 28px rgba(0, 0, 0, .42);
     --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
     --glow: rgba(107, 92, 242, .30);
+    --tint-pri: rgba(47, 111, 237, .14); --tint-in: rgba(31, 157, 85, .14); --tint-out: rgba(229, 72, 77, .14);
+    --fresh: rgba(47, 111, 237, .26); --fresh-ring: rgba(47, 111, 237, .55);
+    --warn: #f2a65a;
     --shade: rgba(2, 4, 10, .66);
     color-scheme: dark;
   }
@@ -32,6 +40,9 @@
     --elev: 0 10px 28px rgba(0, 0, 0, .42);
     --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
     --glow: rgba(107, 92, 242, .30);
+    --tint-pri: rgba(47, 111, 237, .14); --tint-in: rgba(31, 157, 85, .14); --tint-out: rgba(229, 72, 77, .14);
+    --fresh: rgba(47, 111, 237, .26); --fresh-ring: rgba(47, 111, 237, .55);
+    --warn: #f2a65a;
     --shade: rgba(2, 4, 10, .66);
     color-scheme: dark;
 }
@@ -221,7 +232,7 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* 방금 들어온 내역은 목록에서 잠깐 파랗게 반짝인다 */
 li.item.fresh { animation: fresh 3.6s ease-out; }
-@keyframes fresh { 0%, 35% { background: rgba(47, 111, 237, .26); box-shadow: 0 0 0 2px rgba(47, 111, 237, .55); } 100% { background: var(--card); box-shadow: 0 0 0 0 transparent; } }
+@keyframes fresh { 0%, 35% { background: var(--fresh); box-shadow: 0 0 0 2px var(--fresh-ring); } 100% { background: var(--card); box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) {
   #toast.show, #toast .t-bar, li.item.fresh { animation: none; }
 }
@@ -255,17 +266,17 @@ li.item.fresh { animation: fresh 3.6s ease-out; }
 .sms-edit input { flex: 1.4; }
 .sms-edit select { flex: 1; }
 .sms-name { margin-top: 6px; font-size: 14px; }
-.chip.st-new { background: rgba(47,111,237,.14); color: var(--primary); }
-.chip.st-remove { background: rgba(229,72,77,.14); color: var(--out); }
+.chip.st-new { background: var(--tint-pri); color: var(--primary); }
+.chip.st-remove { background: var(--tint-out); color: var(--out); }
 .panel .row { margin-top: 4px; }
 .panel .row button { background: var(--bg); }
 .cap { font-size: 12px; color: var(--sub); margin: 2px 2px 6px; }
 .cap small { font-size: 11px; }
 .seg span { font-size: 14px; padding: 10px 4px; }
 .chip { display: inline-block; font-size: 11px; line-height: 1.5; padding: 0 7px; border-radius: 8px; margin-right: 5px; background: var(--bg); color: var(--sub); }
-.chip.mood-need { background: rgba(47,111,237,.14); color: var(--primary); }
-.chip.mood-want { background: rgba(31,157,85,.14); color: var(--in); }
-.chip.mood-regret { background: rgba(229,72,77,.14); color: var(--out); }
+.chip.mood-need { background: var(--tint-pri); color: var(--primary); }
+.chip.mood-want { background: var(--tint-in); color: var(--in); }
+.chip.mood-regret { background: var(--tint-out); color: var(--out); }
 .check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; margin-bottom: 12px; }
 .check input { margin-top: 3px; }
 .auto-row { margin: 12px 0 0; font-weight: 600; }
@@ -720,3 +731,24 @@ li.day .day-sum.in { color: var(--in); }
 #stats li.settle { display: flex; justify-content: space-between; align-items: center; background: none; border: 1px dashed var(--line); font-size: 14px; color: var(--sub); }
 #stats li.settle b { color: var(--in); font-variant-numeric: tabular-nums; }
 #hdlg .hs-note { display: block; margin-top: 6px; font-size: 12px; color: var(--sub); }
+
+.mood-hint { margin: 6px 2px 0; font-size: 12px; color: var(--sub); }
+
+/* 소비 평가 줄을 눌러 지출 목록을 연다 */
+.slegend li.link { cursor: pointer; }
+.slegend li.link::after { content: '›'; margin-left: 2px; font-size: 18px; line-height: 1; color: var(--sub); }
+
+/* ---- 월 예산 칸 ---- */
+.cmp-bd .bd-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cmp-bd .bd-edit { padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 10px; background: var(--bg); color: var(--primary); }
+.cmp-bd .bd-edit.primary { background: var(--btn); color: #fff; }
+.cmp-bd .bd-main { display: block; margin: 2px 0 0; font-size: 22px; font-weight: 800; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.bd-bar { height: 8px; margin: 8px 0 6px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.bd-bar i { display: block; width: 0; height: 100%; background: var(--primary); transition: width .5s ease, background .3s ease; }
+#bdlg .hint { margin: 0 0 12px; }
+/* 예산 칸은 다른 칸과 카드 높이가 같도록 촘촘하게 */
+.cmp-bd .bd-line { line-height: 1.4; }
+.cmp-bd .bd-main { line-height: 1.2; }
+.cmp-bd .bd-edit { padding: 2px 10px; line-height: 1.5; }
+.cmp-bd .bd-bar { margin: 6px 0 4px; }
+.split-note { margin: 8px 0 0; font-size: 12px; color: var(--sub); }

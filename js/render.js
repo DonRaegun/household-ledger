@@ -201,27 +201,54 @@ function renderList(month) {
 }
 
 // 이전 내역 창: 보고 있는 그 달의 내역 전체를 날짜별로 보여 준다
+let histMode = null;   // null: 이전 내역(그 달 전체), { mood }: 통계에서 연 소비 평가별 지출 목록
 function renderHistory() {
-  const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
-  const tt = totalsOf(month);
-  const out = tt.netOut;
-  $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월`;
-  const inc = tt.netIn;
+  const yearView = !!histMode && tab === 'stats' && statsMode === 'year';
   const col = (label, text, cls = '') => `<div class="${cls}"><small>${label}</small><b>${text}</b></div>`;
-  // 지출은 늘, 수입이 있는 달에는 수입과 합계도 같이 보여 준다
-  $('h-sum').innerHTML = month.length
-    ? `<span class="hs-n">${month.length}건</span><div class="hs-cols">${col('지출', won(out), 'o')}${inc ? col('수입', won(inc), 'i') : ''}${tt.inc ? col('합계', won(tt.bal)) : ''}</div>${tt.settle ? `<span class="hs-note">정산 ${won(tt.settle)}을 지출에서 뺐어요</span>` : ''}`
-    : '이 달에는 내역이 없어요.';
+  $('h-close').innerHTML = `<i aria-hidden="true">‹</i> ${histMode ? '통계' : '내역'}`;
   const list = $('h-list');
   list.innerHTML = '';
+  let shown;
+  if (histMode) {   // 통계의 소비 평가 줄을 눌러 연 목록: 그 기간(월별은 그 달, 연별은 그 해)에서 그 평가의 지출만
+    const base = items.filter((i) => i.type === 'out' && i.date.startsWith(yearView ? cur.getFullYear() + '-' : ym(cur)))
+      .filter((i) => (histMode.mood === 'none' ? !MOODS[i.mood] : i.mood === histMode.mood)).sort(byNewest);
+    const label = histMode.mood === 'none' ? '평가하지 않은 지출' : `${MOODS[histMode.mood]} 지출`;
+    const sum = base.reduce((s, i) => s + i.amount, 0);
+    $('h-title').textContent = yearView ? `${cur.getFullYear()}년` : `${cur.getFullYear()}년 ${cur.getMonth() + 1}월`;
+    $('h-sum').innerHTML = base.length
+      ? `<span class="hs-n">${label} · ${base.length}건</span><div class="hs-cols">${col('합계', won(sum), histMode.mood === 'regret' ? 'o' : '')}</div>`
+      : `${label}이 없어요.`;
+    shown = base;
+  } else {
+    const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
+    const tt = totalsOf(month);
+    const out = tt.netOut;
+    $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월`;
+    const inc = tt.netIn;
+    // 지출은 늘, 수입이 있는 달에는 수입과 합계도 같이 보여 준다
+    $('h-sum').innerHTML = month.length
+      ? `<span class="hs-n">${month.length}건</span><div class="hs-cols">${col('지출', won(out), 'o')}${inc ? col('수입', won(inc), 'i') : ''}${tt.inc ? col('합계', won(tt.bal)) : ''}</div>${tt.settle ? `<span class="hs-note">정산 ${won(tt.settle)}을 지출에서 뺐어요</span>` : ''}`
+      : '이 달에는 내역이 없어요.';
+    shown = month;
+  }
   let last = '';
-  for (const i of month) {
-    if (i.date !== last) { last = i.date; list.appendChild(dayHead(i.date, month)); }
+  for (const i of shown) {
+    if (i.date !== last) { last = i.date; list.appendChild(dayHead(i.date, shown)); }
     list.appendChild(itemEl(i));   // 눌러서 수정·삭제하면 저장 뒤 render()가 이 목록도 다시 그린다
   }
 }
-$('hist-open').onclick = () => { renderHistory(); $('hdlg').showModal(); $('h-list').scrollTop = 0; };
+$('hist-open').onclick = () => { histMode = null; renderHistory(); $('hdlg').showModal(); $('h-list').scrollTop = 0; };
 $('h-close').onclick = () => $('hdlg').close();
+$('hdlg').addEventListener('close', () => { histMode = null; });
+// 통계의 소비 평가 줄(필수·선택·후회·미분류)을 누르면 그 평가의 지출 목록이 페이지로 열린다
+$('mood-stats').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-key]');
+  if (!li) return;
+  histMode = { mood: li.dataset.key };
+  renderHistory();
+  $('hdlg').showModal();
+  $('h-list').scrollTop = 0;
+});
 // 페이지 안에서 달 넘기기: 화살표나 좌우로 밀기 (달이 바뀌면 뒤의 내역 화면도 같은 달이 된다)
 const histMove = (step) => { move(step); playIn($('h-list'), step > 0 ? 'from-right' : 'from-left'); };
 $('h-prev').onclick = () => histMove(-1);
@@ -301,12 +328,14 @@ function renderCompareCard(out, yearView, byCat, prevCat) {
   $('cmp-s1').hidden = !showMonth;
   $('cmp-s2').hidden = !showWeek;
   // 카드 안에서 옆으로 밀어 보는 칸: 그래프(연별은 월별 지출, 월별은 주별 지출)가 먼저, 지난 기간 비교가 다음
-  const n = [yearView, showWeek, showMonth].filter(Boolean).length;
+  const showBudget = !yearView;   // 월 예산 칸은 월별 보기에서만
+  $('cmp-s3').hidden = !showBudget;
+  const n = [yearView, showWeek, showMonth, showBudget].filter(Boolean).length;
   box.hidden = n === 0;
   box.classList.toggle('multi', n > 1);
   const dots = $('cmp-dots');
   dots.hidden = n < 2;
-  const kind = `${yearView}|${showWeek}|${showMonth}`;
+  const kind = `${yearView}|${showWeek}|${showMonth}|${showBudget}`;
   cmpState.n = n;
   cmpState.reset = dots.dataset.kind !== kind;   // 보이는 칸이 바뀌면 첫 칸부터 보여 주고 점도 다시 만든다
   if (cmpState.reset) {
@@ -314,6 +343,7 @@ function renderCompareCard(out, yearView, byCat, prevCat) {
     dots.innerHTML = '<i></i>'.repeat(n);
   }
   if (showWeek) renderWeekly();
+  if (showBudget) renderBudget();
   if (yearView) renderYearBars(currentPeriodForYear);
   if (!showMonth) return;
   const diff = out - prev;
@@ -331,6 +361,32 @@ function renderCompareCard(out, yearView, byCat, prevCat) {
   const top = $('cmp-top');
   top.hidden = !pick;
   if (pick) top.textContent = `${diff >= 0 ? '가장 많이 늘어난 곳' : '가장 많이 줄어든 곳'}: ${pick[0]} ${pick[1] > 0 ? '▲' : '▼'} ${won(Math.abs(pick[1]))}`;
+}
+
+// 비교 카드의 월 예산 칸: 예산을 정하면 남은 돈, 쓴 비율 막대, 하루에 쓸 수 있는 돈을 보여 준다 (정산을 뺀 실지출 기준)
+function renderBudget() {
+  const budget = settings.budget;
+  const btn = $('bd-edit');
+  btn.textContent = budget ? '예산 바꾸기' : '예산 정하기';
+  btn.classList.toggle('primary', !budget);
+  const fill = $('bd-fill');
+  if (!budget) {
+    $('bd-main').textContent = '예산을 정해 보세요';
+    $('bd-detail').textContent = '남은 돈과 하루에 쓸 수 있는 돈을 알려 드려요';
+    $('bd-day').textContent = '';
+    fill.style.width = '0%';
+    return;
+  }
+  const spent = totalsOf(items.filter((i) => i.date.startsWith(ym(cur)))).netOut;
+  const b = budgetStatus(spent, budget, cur);
+  const pct = Math.round(b.ratio * 100);
+  $('bd-main').textContent = b.over ? `${won(-b.left)} 넘게 썼어요` : `남은 돈 ${won(b.left)}`;
+  $('bd-detail').textContent = `쓴 돈 ${won(spent)} · 예산 ${won(budget)} (${pct}%)`;
+  $('bd-day').textContent = b.daysLeft === 0 ? `예산의 ${pct}%를 썼어요`
+    : b.over ? '이번 달 예산을 다 썼어요'
+    : `하루 ${won(b.perDay)} 쓸 수 있어요 · ${b.daysLeft}일 남음`;
+  fill.style.width = Math.min(100, pct) + '%';
+  fill.style.background = b.ratio >= 1 ? 'var(--out)' : b.ratio >= 0.8 ? 'var(--warn)' : '';   // 80%부터 주황, 넘으면 붉은색
 }
 
 // 카드 칸 순환: [마지막 복사본][칸1][칸2]...[마지막][첫째 복사본]. 복사본은 눌러지지 않고 화면 읽기에서도 빠진다
@@ -415,7 +471,9 @@ function renderStats(period, out, yearView) {
   // 정산(더치페이로 돌려받은 돈): 어떤 지출인지 정한 것은 그 카테고리에서 빼서 실지출로 보여 주고, 못 뺀 나머지는 목록 아래 한 줄로 알린다.
   // 도넛 가운데를 누르면 총 지출(정산 전)로 바꿔 볼 수 있다
   let leftover = 0;
+  const ratioByCat = {};   // 카테고리별 (정산을 뺀 지출 / 원래 지출). 결제수단·소비 평가 막대도 이 비율로 줄인다
   if (showNet) {
+    const grossByCat = { ...byCat };
     const toCat = {};
     settleItems.forEach((i) => { if (i.forCat) toCat[i.forCat] = (toCat[i.forCat] || 0) + i.amount; });
     let deducted = 0;
@@ -424,6 +482,7 @@ function renderStats(period, out, yearView) {
       if (d) { byCat[c] -= d; deducted += d; if (byCat[c] === 0) delete byCat[c]; }
     }
     leftover = settleTotal - deducted;
+    for (const c of Object.keys(grossByCat)) ratioByCat[c] = grossByCat[c] ? (byCat[c] || 0) / grossByCat[c] : 1;
   }
   const shownTotal = showNet ? Math.max(0, out - settleTotal) : out;   // 도넛 가운데에 보이는 값 (내역 요약의 지출과 같다)
   // 통계는 큰 카테고리(묶음)로 보여 주고, 고른 묶음 아래에 작은 카테고리를 펼친다
@@ -492,31 +551,35 @@ function renderStats(period, out, yearView) {
 
   // 결제수단별 합계 (결제수단이 없는 예전 내역은 '미지정')
   const byPay = { cash: 0, card: 0, transfer: 0, none: 0 };
-  outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount));
+  const splitNote = showNet && settleTotal ? (leftover ? `정산 ${won(settleTotal - leftover)}을 뺀 금액이에요 (카테고리를 정하지 않은 정산은 빼지 않았어요)` : `정산 ${won(settleTotal)}을 뺀 금액이에요`) : '';
+  const wgt = (i) => (showNet && ratioByCat[i.category] !== undefined ? ratioByCat[i.category] : 1);   // 실지출 보기: 정산을 뺀 만큼 줄인 몫
+  outs.forEach((i) => (byPay[PAY[i.pay] ? i.pay : 'none'] += i.amount * wgt(i)));
+  Object.keys(byPay).forEach((k) => { byPay[k] = Math.round(byPay[k]); });
   // 결제수단이 한 종류뿐이면 "카드 100%"가 되어 정보가 없으므로, 두 종류 이상일 때만 보여준다
   $('pay-wrap').hidden = new Set(outs.map((i) => (PAY[i.pay] ? i.pay : 'none'))).size < 2;
-  $('pay-stats').innerHTML = splitBar([...Object.keys(PAY), 'none'].map((k) => ({ label: PAY[k] || '미지정', amt: byPay[k], color: PAY_COLORS[k] })), out);
+  $('pay-stats').innerHTML = splitBar([...Object.keys(PAY), 'none'].map((k) => ({ label: PAY[k] || '미지정', amt: byPay[k], color: PAY_COLORS[k] })), Object.values(byPay).reduce((s, v) => s + v, 0), splitNote);
 
   // 소비 평가별 합계 (평가를 한 번도 고르지 않았으면 이 영역 자체를 보이지 않는다)
   const byMood = { need: 0, want: 0, regret: 0, none: 0 };
-  outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount));
+  outs.forEach((i) => (byMood[MOODS[i.mood] ? i.mood : 'none'] += i.amount * wgt(i)));
+  Object.keys(byMood).forEach((k) => { byMood[k] = Math.round(byMood[k]); });
   $('mood-wrap').hidden = !outs.length || !items.some((i) => MOODS[i.mood]);
   $('mood-stats').innerHTML = outs.some((i) => MOODS[i.mood])
-    ? splitBar([...Object.keys(MOODS), 'none'].map((k) => ({ label: MOODS[k] || '미분류', amt: byMood[k], color: MOOD_COLORS[k], warn: k === 'regret' })), out)
+    ? splitBar([...Object.keys(MOODS), 'none'].map((k) => ({ label: MOODS[k] || '미분류', amt: byMood[k], color: MOOD_COLORS[k], warn: k === 'regret', key: k })), Object.values(byMood).reduce((s, v) => s + v, 0), splitNote)
     : '<li class="plain">이 기간에는 소비 평가를 고른 지출이 없어요.</li>';
 }
 
 // 비율을 한 줄 막대로: 위에는 100% 막대, 아래에는 이름·비율·금액 (금액이 0인 칸은 보이지 않는다)
 const PAY_COLORS = { card: '#8f93ee', cash: '#a6cc66', transfer: '#5b9bf0', none: '#8e99ad' };
 const MOOD_COLORS = { need: '#4cc38a', want: '#f2a65a', regret: '#ee7b78', none: '#8e99ad' };
-function splitBar(parts, total) {
+function splitBar(parts, total, note = '') {
   const shown = parts.filter((p) => p.amt > 0);
   if (!shown.length || !total) return '';
   const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   return '<li class="split"><div class="sbar">' +
     shown.map((p) => `<i style="flex:${p.amt};background:${p.color}" title="${esc(p.label)}"></i>`).join('') + '</div><ul class="slegend">' +
-    shown.map((p) => `<li${p.warn ? ' class="warn"' : ''}><i style="background:${p.color}"></i><span>${esc(p.label)}</span><em>${Math.round((p.amt / total) * 100)}%</em><b>${won(p.amt)}</b></li>`).join('') +
-    '</ul></li>';
+    shown.map((p) => `<li${p.warn || p.key ? ` class="${[p.warn ? 'warn' : '', p.key ? 'link' : ''].join(' ').trim()}"` : ''}${p.key ? ` data-key="${p.key}"` : ''}><i style="background:${p.color}"></i><span>${esc(p.label)}</span><em>${Math.round((p.amt / total) * 100)}%</em><b>${won(p.amt)}</b></li>`).join('') +
+    '</ul>' + (note ? `<p class="split-note">${esc(note)}</p>` : '') + '</li>';
 }
 
 // 연별 보기의 월별 지출: 꺾은선 그래프. 선은 왼쪽에서 오른쪽으로 그려지고, 아래 달 이름을 누르면 그 달로 이동한다

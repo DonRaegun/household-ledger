@@ -112,6 +112,19 @@ function totalsOf(list) {
   return { out, inc, settle, netOut: Math.max(0, out - settle), netIn: inc - settle, bal: inc - out };
 }
 
+// 월 예산: 쓴 돈(정산을 뺀 실지출)으로 남은 돈과 하루에 쓸 수 있는 돈을 센다.
+// 이번 달은 오늘부터 말일까지(오늘 포함) 남은 날수로 나누고, 지난달은 남은 날이 없고, 다음 달은 한 달 전체다
+function budgetStatus(spent, budget, view, t = today()) {
+  const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
+  const cmp = ym(view).localeCompare(t.slice(0, 7));   // 음수: 지난 달, 0: 이번 달, 양수: 다음 달
+  const left = budget - spent;
+  const daysLeft = cmp < 0 ? 0 : cmp > 0 ? days : days - Number(t.slice(8)) + 1;
+  return {
+    left, over: left < 0, ratio: budget ? spent / budget : 0, daysLeft,
+    perDay: daysLeft ? Math.floor(Math.max(0, left) / daysLeft / 100) * 100 : 0,   // 100원 단위로 내림
+  };
+}
+
 // 해당 월에 없는 날(31일 등)은 말일로 맞춘다
 const clampDay = (y, m, day) => Math.min(day, new Date(y, m + 1, 0).getDate());
 

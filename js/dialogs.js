@@ -26,6 +26,15 @@ $('donut').addEventListener('click', (e) => {
     else if (selCat) { selCat = null; render(); }
   }
 });
+// 고른 조각은 그래프 바깥(빈 곳, 위쪽 카드 등)을 눌러도 풀린다. 그래프 안과 카테고리 목록은 각자 정해진 동작이 있어서 제외한다
+document.addEventListener('click', (e) => {
+  if (!selCat || tab !== 'stats') return;
+  // 누른 곳은 처리하는 동안 목록이 다시 그려져 화면에서 빠질 수 있어서, 누른 순간의 경로(composedPath)로 확인한다
+  const SAFE = '#donut-wrap, #stats, dialog, nav, #stats-mode, #prev, #next, #month';   // 월·모드·탭 바꾸기는 이미 선택을 지운다
+  if (e.composedPath().some((n) => n.matches && n.matches(SAFE))) return;
+  selCat = null;
+  render();
+});
 $('stats').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-cat]');
   if (li) toggleCat(li.dataset.cat);
@@ -211,6 +220,7 @@ function bindMoney(el) {
 }
 bindMoney($('amount'));
 bindMoney($('famount'));
+bindMoney($('bamount'));   // 월 예산 입력칸 (열고 저장하는 코드는 settings.js)
 
 function openDialog(item) {
   editing = item || null;
@@ -330,11 +340,18 @@ $('form').addEventListener('submit', () => {
   render();
 });
 $('cancel').onclick = () => $('dlg').close();
-$('del').onclick = async () => {
-  if (editing && await ask('이 내역을 삭제할까요?', { yes: '삭제', danger: true })) {
-    items = items.filter((i) => i !== editing);
-    save(); render(); $('dlg').close();
-  }
+// 삭제: 확인 창 대신, 지운 직후 '되돌리기'를 눌러 살릴 수 있다 (몇 초 동안 토스트가 떠 있다)
+$('del').onclick = () => {
+  if (!editing) return;
+  const gone = editing;
+  items = items.filter((i) => i !== gone);
+  save(); render(); $('dlg').close();
+  showToast('delete', [], {
+    title: () => '내역을 지웠어요',
+    detail: `${stripInst(gone.memo) || gone.category} ${won(gone.amount)}`,
+    undo: true,
+    onUndo: () => { items.push(gone); save(); freshIds.add(gone.id); render(); setTimeout(() => freshIds.delete(gone.id), 4500); },
+  });
 };
 $('fab').onclick = () => openDialog();
 
