@@ -316,6 +316,40 @@ let currentPeriodForYear = [];
 function renderCompare(out, yearView, byCat, prevCat) {
   renderCompareCard(out, yearView, byCat, prevCat);
   syncCmpLoop(cmpState.n, cmpState.reset);
+  maybePeekCard(cmpState.n);
+}
+
+// 처음 알려 주기: 통계 카드에 옆 칸이 있다는 걸 모르는 분이 많아서, 통계에 들어오면 카드가 오른쪽으로 살짝 밀렸다 돌아온다.
+// 하루에 한 번만, 그리고 사용자가 직접 옆으로 밀어 본 뒤에는 다시 하지 않는다. '애니메이션 줄이기'를 켰으면 하지 않는다
+let cardPeeked = false, cardPeekActive = false;
+const peekState = () => { try { return JSON.parse(localStorage.getItem('ledger.cardPeek.v1')) || {}; } catch { return {}; } };
+const savePeek = (v) => { try { localStorage.setItem('ledger.cardPeek.v1', JSON.stringify(v)); } catch { /* 저장하지 못해도 이번에만 보여 준다 */ } };
+function markCardLearned() { cardPeekActive = false; $('cmp-track').style.scrollSnapType = ''; savePeek({ ...peekState(), learned: true }); }
+function maybePeekCard(n) {
+  if (cardPeeked || n < 2 || tab !== 'stats') return;
+  const st = peekState();
+  if (st.learned || st.day === today()) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  cardPeeked = true;
+  setTimeout(peekCard, 900);   // 통계 화면이 자리 잡은 뒤에 보여 준다
+}
+function peekCard() {
+  const tr = $('cmp-track');
+  if (tab !== 'stats' || $('cmp').hidden || tr.querySelectorAll('.cmp-slide:not([hidden])').length < 2) { cardPeeked = false; return; }
+  savePeek({ ...peekState(), day: today() });
+  const from = tr.scrollLeft, dist = 56, t0 = performance.now(), DUR = 1400;
+  const ease = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+  cardPeekActive = true;
+  tr.style.scrollSnapType = 'none';   // 움직이는 동안만 자석 정렬을 끈다
+  const step = (t) => {
+    if (!cardPeekActive) return;   // 손을 대면 멈춘다 (자석 정렬은 markCardLearned가 되돌린다)
+    const p = Math.min(1, (t - t0) / DUR);
+    const k = p < 0.4 ? ease(p / 0.4) : p < 0.55 ? 1 : 1 - ease((p - 0.55) / 0.45);   // 밀리고, 잠깐 멈추고, 돌아온다
+    tr.scrollLeft = from + dist * k;
+    if (p < 1) requestAnimationFrame(step);
+    else { tr.scrollLeft = from; tr.style.scrollSnapType = ''; cardPeekActive = false; }
+  };
+  requestAnimationFrame(step);
 }
 const cmpState = { n: 0, reset: false };
 function renderCompareCard(out, yearView, byCat, prevCat) {
@@ -672,7 +706,7 @@ function countTo(el, to, fmt) {
 
 // 원 그래프: 조각을 이전 모양에서 새 모양으로 이어서 늘이고 줄인다. 처음에는 위에서부터 감겨 펼쳐지듯 나타나고,
 // 달을 바꾸면 지우고 다시 그리지 않고 조각이 부드럽게 옮겨 가며, 고른 조각은 커지면서 빛난다. 가운데 숫자는 올라가듯 바뀐다.
-const DONUT_R = 38, DONUT_C = 2 * Math.PI * DONUT_R, DONUT_GAP = 1.4;
+const DONUT_R = 38, DONUT_C = 2 * Math.PI * DONUT_R, DONUT_GAP = 0.7;   // 조각 사이의 틈(원 둘레 단위): 구분은 되지만 눈에 띄지 않을 만큼 얇게
 const donutEls = new Map();   // 카테고리 -> 그려진 circle (조각을 유지해서 모양이 이어서 변하게 한다)
 let donutRaf = 0;
 const easeInOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);

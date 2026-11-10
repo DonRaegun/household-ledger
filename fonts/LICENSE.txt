@@ -1,0 +1,8 @@
+Pretendard (PretendardVariable.woff2)
+
+이 폴더의 글꼴은 Pretendard입니다.
+- 출처: https://github.com/orioncactus/pretendard (v1.3.9)
+- 라이선스: SIL Open Font License 1.1 (OFL-1.1)
+  전체 조항은 위 저장소의 LICENSE 파일과 https://openfontlicense.org 에서 볼 수 있습니다.
+- 이 앱에서는 글꼴 파일을 수정하지 않고 그대로 넣어 쓰고 있습니다.
+  OFL에 따라 글꼴 자체를 따로 판매하지 않으며, 이 안내를 글꼴과 함께 둡니다.

@@ -356,6 +356,7 @@ test('카테고리 자동 분류: 통신·보험은 고정비, 구독 서비스�
   assert.deepEqual(['넷플릭스', '롯데시네마', '쿠팡', '스포티파이'].map(g), ['구독', '문화/여가', '쇼핑', '구독']);
   assert.equal(g('KTX 예매'), '기타');   // KT가 들어 있어도 철도 이름은 통신으로 보지 않는다
   assert.equal(g('스타벅스'), '카페');
+  assert.deepEqual(['테스트떡방', '동네빵집'].map(g), ['식비', '식비']);
 });
 
 test('문자 나누기: 도착 시각 줄은 뒤따르는 ●로 시작하는 본문과 한 통으로 둔다', () => {
@@ -402,4 +403,23 @@ test('월 예산: 남은 돈, 쓴 비율, 하루에 쓸 수 있는 돈', () => {
   assert.equal(b(100000, 600000, 2026, 9, '2026-11-03').daysLeft, 0);
   const next = b(0, 300000, 2026, 10, '2026-10-20');
   assert.deepEqual([next.daysLeft, next.perDay], [30, 10000]);
+});
+
+test('토스 결제 알림: 적립 포인트가 아니라 "결제 금액:" 줄의 금액과 "에서" 앞의 가맹점을 읽는다', () => {
+  const t = stamp('17:37') + '[토스] 테스트떡방에서 페이스페이로 결제하고 2,000원 받았어요.\n- 결제 금액: 13,337원\n- 받은 혜택: 20% 적립\n- 적립 포인트: 2,000원';
+  const r = parse(t);
+  assert.deepEqual([r.type, r.amount, r.merchant, r.date, r.time, r.cancel], ['out', 13337, '테스트떡방', '2026-11-03', '17:37', false]);
+  // 금액이 한 줄에 이름표 없이 있는 예전 형식은 그대로 첫 금액을 쓴다
+  const old = parse(stamp('16:32') + '32,420원 결제\n테스트카드 | 테스트몰(일시불)');
+  assert.deepEqual([old.amount, old.merchant], [32420, '테스트몰']);
+});
+
+test('자동 입력 기준: 글 안의 시각이 있거나 결제 즉시 도착하는 앱 알림(토스 형식)이면 시각을 믿는다', () => {
+  const toss = stamp('17:37') + '[토스] 테스트떡방에서 페이스페이로 결제하고 2,000원 받았어요.\n- 결제 금액: 13,337원';
+  const pipe = stamp('16:32') + '32,420원 결제\n테스트카드 | 테스트몰(일시불)';
+  const text = stamp('12:31') + '● 테스트카드 이용안내\n테스트승인\n12,000원 일시불\n11/03 12:30\n테스트식당';
+  assert.deepEqual([parse(toss), parse(pipe), parse(text)].map((r) => [r.whenFromText, r.timeTrusted]), [[false, true], [false, true], [true, true]]);
+  // 시각도 없고 즉시 도착 형식도 아닌 알림은 도착 시각을 믿지 않는다 (확인 후 넣는다)
+  const vague = parse(stamp('09:10') + '테스트상점 결제 4,900원');
+  assert.deepEqual([vague.whenFromText, vague.timeTrusted], [false, false]);
 });

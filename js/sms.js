@@ -7,7 +7,7 @@ const SMS_START = /^\s*(\[[^\]\n]+\]\s*\[[^\]\n]+\]|\[Web발신\]|●|[가-힣A-
 const SMS_WHEN = /(\d{1,2})[\/.\-](\d{1,2})\s+(\d{1,2}):(\d{2})/;     // '10/10 20:15', '10-10 20:15'
 const CAT_GUESS = [
   [/카페|커피|스타벅스|투썸|이디야|메가|빽다방|할리스|매머드|컴포즈|더벤티|파스쿠찌|엔제리너스|폴바셋/, '카페'],
-  [/편의점|GS25|CU|세븐일레븐|마트|식당|정육|치킨|피자|분식|김밥|국밥|횟집|고기|배달|맥도날|버거|도시락|반찬/, '식비'],
+  [/편의점|GS25|CU|세븐일레븐|마트|식당|정육|치킨|피자|분식|김밥|국밥|횟집|고기|배달|맥도날|버거|도시락|반찬|떡|빵집|베이커리/, '식비'],
   [/주유|택시|지하철|버스|티머니|코레일|철도|하이패스|주차/, '교통'],
   [/병원|의원|약국|치과|한의원/, '의료'],
   [/통신|SK텔레콤|SKT|LG유플러스|LGU\+|(^|[^A-Za-z])KT($|[^A-Za-z])|월세|관리비|전기|도시가스|수도|보험|삼성화재|현대해상|손해|생명/, '고정비'],
@@ -89,11 +89,17 @@ function parseSms(block) {
     posted = g.slice(0, 5).map(Number);
     return '';
   });
+  // 결제 즉시 도착하는 앱 알림 형식(글 안에 시각은 없다): '카드 | 가맹점(일시불)' 줄이 있거나 '[토스] 가맹점에서 … 결제하고'로 시작한다.
+  // 이런 알림은 도착한 시각을 결제 시각으로 믿고 확인 없이 넣어도 된다
+  const instantApp = /^[ \t]*[가-힣A-Za-z]*(?:체크|카드|신용)[가-힣A-Za-z]*[ \t]*\|/m.test(block) || /^\s*\[토스\]\s*.+?에서\s+.*?결제하고/m.test(block);
   // '테스트카드 | 가맹점(일시불)'처럼 카드 이름이 앞에 붙은 줄은 카드 이름을 떼고 가맹점만 남긴다
   block = block.replace(/^[ \t]*[가-힣A-Za-z]*(?:체크|카드|신용)[가-힣A-Za-z]*[ \t]*\|[ \t]*/gm, '');
   const w = block.match(SMS_WHEN);
   const bank = isBank(block);
-  const a = bank ? null : block.match(/(\d[\d,]*)\s*원/);
+  // '결제 금액: 13,337원'처럼 이름표가 붙은 금액이 있으면 그것이 결제 금액이다. 첫 금액이 받은 포인트·혜택일 수 있어서 이름표를 먼저 본다
+  // (토스 '[토스] 가맹점에서 페이스페이로 결제하고 2,000원 받았어요.' + '- 결제 금액: 13,337원'의 2,000원은 적립 포인트)
+  const labeled = bank ? null : block.match(/결제\s*금액\s*:?\s*(\d[\d,]*)\s*원/);
+  const a = bank ? null : labeled || block.match(/(\d[\d,]*)\s*원/);
   const ba = bank ? bankAmount(block) : null;
   if ((!a && !ba) || (!w && !posted)) return null;
   const cancel = /취소/.test(block);
@@ -112,7 +118,7 @@ function parseSms(block) {
   } else {
     // 글 안에 날짜·시각이 없으면 알림이 도착한 시각을 결제 시각으로 본다. 가맹점은 금액 뒤의 글로 짐작한다
     [y, mo, da, hh, mi] = posted;
-    rest = a ? block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '') : block;
+    rest = a && !labeled ? block.slice(block.indexOf(a[0]) + a[0].length).replace(/^\s*(일시불|\d+\s*개월)/, '') : block;
   }
   if (bank) {
     const t = BANK_ONLY(block);
@@ -128,7 +134,9 @@ function parseSms(block) {
     };
   }
   // 가맹점: 날짜·시각 뒤(우리카드 형식)에서 먼저 찾고, 없으면 글 전체에서 라벨 줄을 뺀 첫 줄(KB국민 형식: 금액 뒤·날짜 앞)을 쓴다
-  const merchant = (textLines(rest).find(isMerchantLine) || textLines(block).find(isMerchantLine) || '')
+  // 토스 형식은 '에서' 앞이 가맹점이다
+  const tossMerchant = (block.match(/^\s*\[토스\]\s*(.+?)에서\s+.*?결제하고/m) || [])[1];
+  const merchant = (tossMerchant || textLines(rest).find(isMerchantLine) || textLines(block).find(isMerchantLine) || '')
     .replace(/（/g, '(').replace(/）/g, ')').replace(/\s*\((?:일시불|\d+\s*개월)\)$/, '');
   const inst = block.match(/(\d+)\s*개월/);
   return {
@@ -136,6 +144,7 @@ function parseSms(block) {
     date: `${y}-${pad(mo)}-${pad(da)}`, time: `${pad(hh)}:${pad(mi)}`,
     merchant, inst: inst ? Number(inst[1]) : 0,
     whenFromText: !!w,   // 날짜·시각이 글 안에 있었는지 (알림이 도착한 시각으로 대신한 것이 아닌지)
+    timeTrusted: !!w || instantApp,   // 결제 시각을 믿을 수 있는지: 글 안의 시각이거나, 결제 즉시 도착하는 앱 알림 형식
   };
 }
 

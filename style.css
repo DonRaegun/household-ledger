@@ -1,3 +1,11 @@
+/* 글꼴은 Pretendard 하나로 통일한다 (파일을 앱에 같이 넣어서 인터넷 없이도, 어떤 폰에서도 똑같이 나온다. 라이선스는 fonts/LICENSE.txt) */
+@font-face {
+  font-family: 'Pretendard';
+  src: url('fonts/PretendardVariable.woff2') format('woff2-variations'), url('fonts/PretendardVariable.woff2') format('woff2');
+  font-weight: 45 920;   /* 가변 글꼴: 가는 글씨부터 굵은 글씨까지 한 파일로 */
+  font-style: normal;
+  font-display: swap;    /* 글꼴이 로딩되기 전에는 아래 대체 글꼴로 먼저 보여 준다 */
+}
 /* 색은 모두 여기 변수에서 정한다. 밝은 모드는 차분한 네이비 블루그레이, 어두운 모드는 깊은 남색 계열 */
 :root {
   /* 밝은 모드: 차분한 네이비 블루그레이 (순백 대신 밝은 블루그레이 바탕, 채도를 낮춘 파랑, 보라 없음) */
@@ -6,7 +14,7 @@
   --btn: linear-gradient(135deg, #48658f, #526f98);        /* 채워진 버튼·선택 상태 */
   --hdr: rgba(233, 237, 242, .86);                          /* 위 막대, 아래 탭 */
   --elev: 0 1px 2px rgba(32, 41, 56, .04), 0 6px 18px rgba(32, 41, 56, .05);
-  --sum-bg: linear-gradient(155deg, #f5f7fa 0%, #e9eef5 100%);
+  --sum-bg: #f5f7fa;   /* 요약·비교 카드: 그라데이션 없는 단색 */
   --glow: rgba(73, 103, 150, .14);
   --shade: rgba(20, 28, 44, .45);
   /* 뜻이 있는 색의 옅은 배경(칩, 방금 들어온 내역): 위 강조·수입·지출 색과 같은 계열 */
@@ -23,7 +31,7 @@
     --btn: linear-gradient(135deg, #4a78f5, #6b5cf2);
     --hdr: rgba(10, 12, 19, .82);
     --elev: 0 10px 28px rgba(0, 0, 0, .42);
-    --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
+    --sum-bg: #1a2136;   /* 요약·비교 카드: 그라데이션 없는 단색 (목록 카드보다 살짝 밝게) */
     --glow: rgba(107, 92, 242, .30);
     --tint-pri: rgba(47, 111, 237, .14); --tint-in: rgba(31, 157, 85, .14); --tint-out: rgba(229, 72, 77, .14);
     --fresh: rgba(47, 111, 237, .26); --fresh-ring: rgba(47, 111, 237, .55);
@@ -38,7 +46,7 @@
     --btn: linear-gradient(135deg, #4a78f5, #6b5cf2);
     --hdr: rgba(10, 12, 19, .82);
     --elev: 0 10px 28px rgba(0, 0, 0, .42);
-    --sum-bg: linear-gradient(155deg, #1d2540 0%, #121726 62%);
+    --sum-bg: #1a2136;   /* 요약·비교 카드: 그라데이션 없는 단색 (목록 카드보다 살짝 밝게) */
     --glow: rgba(107, 92, 242, .30);
     --tint-pri: rgba(47, 111, 237, .14); --tint-in: rgba(31, 157, 85, .14); --tint-out: rgba(229, 72, 77, .14);
     --fresh: rgba(47, 111, 237, .26); --fresh-ring: rgba(47, 111, 237, .55);
@@ -50,7 +58,7 @@
 [hidden] { display: none !important; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.4 -apple-system, "Noto Sans KR", system-ui, sans-serif;
+  font: 16px/1.4 "Pretendard", -apple-system, "Noto Sans KR", system-ui, sans-serif;
   padding-bottom: calc(150px + env(safe-area-inset-bottom));
 }
 button, input, select { font: inherit; color: inherit; }
@@ -759,7 +767,7 @@ li.day .day-sum.in { color: var(--in); }
 .cmp-bd .bd-edit { font-size: 14px; }
 .cmp-bd .bd-main { font-size: 24px; }
 #donut-center span { font-size: 13.5px; }
-#donut-center b { font-size: 21px; }
+#donut-center b { font-size: 20px; }   /* Pretendard는 숫자 폭이 넓어서 7자리 금액이 빈 곳에 여유 있게 들어가도록 */
 #donut-center small { font-size: 13px; }
 #view-stats h2 { font-size: 17px; }
 #stats li .top { font-size: 17px; }

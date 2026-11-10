@@ -374,6 +374,15 @@ function cmpWrap() {
   else if (i === n + 1) jumpCmp(1);
 }
 $('cmp-track').addEventListener('scroll', () => { syncCmpDots(); clearTimeout(cmpTimer); cmpTimer = setTimeout(cmpWrap, 80); }, { passive: true });
+// 사용자가 카드를 직접 옆으로 밀어 보면(가로로 20px 넘게) '살짝 밀어 알려 주기'는 더 하지 않는다
+{
+  let px = 0, py = 0;
+  $('cmp-track').addEventListener('touchstart', (e) => { px = e.touches[0].clientX; py = e.touches[0].clientY; if (cardPeekActive) { cardPeekActive = false; $('cmp-track').style.scrollSnapType = ''; } }, { passive: true });
+  $('cmp-track').addEventListener('touchmove', (e) => {
+    const dx = Math.abs(e.touches[0].clientX - px), dy = Math.abs(e.touches[0].clientY - py);
+    if (dx > 20 && dx > dy) markCardLearned();
+  }, { passive: true });
+}
 $('wk-chart').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-m]');
   if (b && !b.classList.contains('off')) pickPoint($('wk-chart'), Number(b.dataset.m));

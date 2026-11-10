@@ -1,5 +1,5 @@
-const CACHE = 'ledger-v3';
-const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg',
+const CACHE = 'ledger-v4';
+const FILES = ['./', 'index.html', 'style.css', 'manifest.json', 'icon.svg', 'fonts/PretendardVariable.woff2',
   ...['core', 'store', 'holidays', 'sms', 'render', 'toast', 'fixed', 'settings', 'picker', 'dialogs', 'search', 'ics', 'sms-ui', 'native', 'update', 'export', 'modal', 'main']
     .map((n) => `js/${n}.js`)];
 

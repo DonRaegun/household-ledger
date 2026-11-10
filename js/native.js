@@ -26,7 +26,7 @@ const pendingText = (p) => `[알림 ${alertStamp(p.postTime)}]\n${p.text}`;
 function autoApplyPending() {
   if (!NP || !settings.autoApply || !pending.length || $('sdlg').open) return;   // 확인 창을 보는 중에는 건드리지 않는다
   analyzeSms(pending.map(pendingText).join('\n'));
-  const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && !r.review && (r.whenFromText || r.bank) && r.merchant && r.amount > 0);
+  const sure = smsRows.filter((r) => r.status === 'new' && !r.cancel && !r.review && (r.timeTrusted || r.bank) && r.merchant && r.amount > 0);
   const known = smsRows.filter((r) => r.status === 'dup' || r.status === 'again');   // 이미 가계부에 있거나 같은 결제가 한 번 더 온 알림
   if (!sure.length && !known.length) return;
   // 고정지출이 먼저 넣은 내역과 합쳐지는 경우: 실제 결제 날짜·시각으로 맞추고 알림 표시를 달아, 이후 같은 결제 알림도 걸러지게 한다
