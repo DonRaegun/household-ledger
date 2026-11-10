@@ -752,3 +752,20 @@ li.day .day-sum.in { color: var(--in); }
 .cmp-bd .bd-edit { padding: 2px 10px; line-height: 1.5; }
 .cmp-bd .bd-bar { margin: 6px 0 4px; }
 .split-note { margin: 8px 0 0; font-size: 12px; color: var(--sub); }
+
+/* ---- 통계 화면의 글자와 숫자를 키운다 (읽어야 하는 정보는 13px 이상, 눈금 글자도 12.5px) ---- */
+.yc-val, .yc-sel, .yc-cols em { font-size: 12.5px; }
+#cmp span, #cmp small { font-size: 13.5px; }
+.cmp-bd .bd-edit { font-size: 14px; }
+.cmp-bd .bd-main { font-size: 24px; }
+#donut-center span { font-size: 13.5px; }
+#donut-center b { font-size: 21px; }
+#donut-center small { font-size: 13px; }
+#view-stats h2 { font-size: 17px; }
+#stats li .top { font-size: 17px; }
+#stats .delta { font-size: 12.5px; }
+#stats .subs em, #stats .subs b { font-size: 15px; }
+#stats li.settle { font-size: 15px; }
+.slegend li { font-size: 15px; }
+.slegend li em { font-size: 14px; }
+.split-note, .mood-hint { font-size: 13px; }
