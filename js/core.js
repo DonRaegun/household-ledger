@@ -1,7 +1,7 @@
 // 공통: 상수, 값 형식, 날짜·금액 도우미
 const CATEGORIES = {
   out: ['식비', '카페', '교통', '쇼핑', '문화/여가', '고정비', '구독', '의료', '경조사', '기타'],
-  in: ['급여', '용돈', '부수입', '기타'],
+  in: ['급여', '용돈', '부수입', '정산', '기타'],   // 정산: 더치페이처럼 먼저 계산하고 나중에 돌려받은 돈 (지출에서 뺀다)
 };
 // 예전 이름 -> 지금 이름 (주거/통신·보험은 '고정비'로 합쳤다. '쇼핑/여가'는 개발 중에만 있던 이름이라 '쇼핑'으로 되돌린다). 옛 데이터와 백업 파일을 읽을 때 바꾼다
 const CAT_RENAME = { '주거/통신': '고정비', '보험': '고정비', '쇼핑/여가': '쇼핑' };
@@ -16,7 +16,7 @@ const GROUPS = [
 ];
 const groupOf = (c) => (GROUPS.find((g) => g.cats.includes(catName(c))) || GROUPS[GROUPS.length - 1]).name;
 const groupColor = (name) => (GROUPS.find((g) => g.name === name) || GROUPS[GROUPS.length - 1]).color;
-const IN_COLORS = { '급여': '#4cc38a', '용돈': '#5cc6de', '부수입': '#8fcf6e' };   // 수입 카테고리 색 (통계에는 나오지 않는다)
+const IN_COLORS = { '급여': '#4cc38a', '용돈': '#5cc6de', '부수입': '#8fcf6e', '정산': '#8f93ee' };   // 수입 카테고리 색 (통계에는 나오지 않는다)
 // 카테고리 아이콘: 모두 다르게. 선 모양이라 색은 묶음 색을 따라간다 (24x24)
 const ICONS = {
   '식비': '<path d="M5 3v5a3 3 0 0 0 6 0V3M8 3v6M8 11v10"/><path d="M16 21V3c2.5 1.5 4 4.5 4 8h-4"/>',
@@ -32,6 +32,7 @@ const ICONS = {
   '급여': '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
   '용돈': '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h4a1.5 1.5 0 0 1 0 3h-3"/>',
   '부수입': '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+  '정산': '<path d="M7 8h12l-3-3M17 16H5l3 3"/>',
 };
 const catIcon = (c) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[catName(c)] || ICONS['기타']}</svg>`;
 const PAY = { cash: '현금', card: '카드', transfer: '계좌이체' };
@@ -86,12 +87,29 @@ function previousOuts(list, view, yearView, t) {
 }
 
 // 한 달을 7일씩 끊은 주별 지출: 1주=1~7일, 2주=8~14일 ... (마지막 주는 말일까지)
-function weeklySpending(list, view) {
+// net가 true이면 그 주에 돌려받은 정산(더치페이)만큼 뺀 실지출로 센다 (0 아래로는 내려가지 않는다)
+function weeklySpending(list, view, net = false) {
   const days = new Date(view.getFullYear(), view.getMonth() + 1, 0).getDate();
   const weeks = Array.from({ length: Math.ceil(days / 7) }, (_, k) => ({ n: k + 1, from: k * 7 + 1, to: Math.min(days, k * 7 + 7), sum: 0 }));
   const p = ym(view);
-  list.filter((i) => i.type === 'out' && i.date.startsWith(p)).forEach((i) => { weeks[Math.floor((Number(i.date.slice(8)) - 1) / 7)].sum += i.amount; });
+  const wk = (i) => weeks[Math.floor((Number(i.date.slice(8)) - 1) / 7)];
+  list.filter((i) => i.type === 'out' && i.date.startsWith(p)).forEach((i) => { wk(i).sum += i.amount; });
+  if (net) {
+    list.filter((i) => i.type === 'in' && i.category === '정산' && i.date.startsWith(p)).forEach((i) => { wk(i).sum -= i.amount; });
+    weeks.forEach((w) => { w.sum = Math.max(0, w.sum); });
+  }
   return weeks;
+}
+
+// 합계: 지출·수입과 '정산'(먼저 계산하고 돌려받은 돈)을 반영한 값.
+// 실지출 = 지출 - 정산, 실수입 = 수입 - 정산 (정산은 진짜 수입이 아니라 지출을 돌려받은 것이라서). 합계(수입 - 지출)는 그대로다
+function totalsOf(list) {
+  let out = 0, inc = 0, settle = 0;
+  for (const i of list) {
+    if (i.type === 'out') out += i.amount;
+    else { inc += i.amount; if (i.category === '정산') settle += i.amount; }
+  }
+  return { out, inc, settle, netOut: Math.max(0, out - settle), netIn: inc - settle, bal: inc - out };
 }
 
 // 해당 월에 없는 날(31일 등)은 말일로 맞춘다

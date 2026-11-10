@@ -165,3 +165,31 @@ $('fdel').onclick = async () => {
     saveSettings(); render(); $('fdlg').close();
   }
 };
+
+// 접이식 칸(details.fold, details.more): 열고 닫을 때 높이가 부드럽게 변한다.
+// 안쪽 내용을 감싸서 높이를 0fr <-> 1fr로 바꾸고, 닫을 때는 애니메이션이 끝난 뒤에 open 속성을 뗀다.
+// '애니메이션 줄이기'를 켰으면 원래 동작(바로 열고 닫기)을 그대로 쓴다.
+document.querySelectorAll('details.fold, details.more').forEach((d) => {
+  const sum = d.querySelector('summary');
+  const body = document.createElement('div');
+  body.className = 'fold-body';
+  const inner = document.createElement('div');
+  inner.className = 'fold-inner';
+  [...d.childNodes].filter((n) => n !== sum).forEach((n) => inner.appendChild(n));
+  body.appendChild(inner);
+  d.appendChild(body);
+  d.classList.toggle('show', d.open);
+  sum.addEventListener('click', (e) => {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { d.classList.toggle('show', !d.open); return; }
+    e.preventDefault();
+    if (d.open && d.classList.contains('show')) {   // 닫기
+      d.classList.remove('show');
+      const done = () => { if (!d.classList.contains('show')) d.removeAttribute('open'); };
+      body.addEventListener('transitionend', done, { once: true });
+      setTimeout(done, 350);   // 전환이 안 일어나는 경우를 대비한 안전장치
+    } else {   // 열기: 먼저 열어서 내용을 보이게 한 뒤 다음 프레임에 높이를 늘린다
+      d.setAttribute('open', '');
+      requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('show')));
+    }
+  });
+});

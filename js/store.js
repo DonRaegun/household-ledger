@@ -84,6 +84,7 @@ function cleanItem(i, n) {
   if (typeof i.fixedId === 'string') out.fixedId = i.fixedId.slice(0, 40);
   if (typeof i.smsKey === 'string') out.smsKey = i.smsKey.slice(0, 200);
   if (i.auto === true) out.auto = true;
+  if (out.type === 'in' && out.category === '정산' && CATEGORIES.out.includes(catName(i.forCat))) out.forCat = catName(i.forCat);   // 어떤 지출을 돌려받은 정산인지
   return out;
 }
 function cleanFixed(f) {
@@ -146,6 +147,8 @@ let cur = new Date(); cur.setDate(1);
 let tab = 'list';          // 'list' | 'stats' | 'settings'
 let listMode = 'list';     // 'list' | 'cal'
 let statsMode = 'month';   // 'month' | 'year'
+let statsNet = true;       // 통계를 실지출(정산을 뺀 값)로 볼지, 총 지출로 볼지 (도넛 가운데를 누르면 바뀐다)
+let statsHasSettle = false;   // 지금 보는 기간에 정산이 있는지 (있을 때만 위 전환이 의미가 있다)
 let selCat = null;         // 도넛에서 선택한 카테고리
 let selDay = null;         // 달력에서 선택한 날짜
 let editing = null;

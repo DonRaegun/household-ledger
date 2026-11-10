@@ -388,9 +388,7 @@ details.fold { margin-top: 14px; padding: 0; }
 details.fold summary { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; font-weight: 600; cursor: pointer; list-style: none; }
 details.fold summary::-webkit-details-marker { display: none; }
 details.fold summary::after { content: '›'; font-size: 20px; line-height: 1; color: var(--sub); transition: transform .15s; }
-details.fold[open] summary::after { transform: rotate(90deg); }
-details.fold > :not(summary) { margin-left: 16px; margin-right: 16px; }
-details.fold[open] { padding-bottom: 14px; }
+details.fold.show summary::after { transform: rotate(90deg); }
 
 /* 취소 문자가 지울 내역 안내 */
 .sms-target { margin-top: 4px; font-size: 13px; color: var(--sub); }
@@ -399,11 +397,11 @@ details.fold[open] { padding-bottom: 14px; }
 /* ---- 내역 검색 ---- */
 #search-open { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; margin-right: 8px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); color: var(--sub); }
 #list-count { flex: 1; }
-#qdlg, #hdlg, #xdlg { width: min(94vw, 460px); height: min(88vh, 720px); padding: 14px; }
+#qdlg, #xdlg { width: min(94vw, 460px); height: min(88vh, 720px); padding: 14px; }
 #qdlg[open], #hdlg[open], #xdlg[open] { display: flex; flex-direction: column; }
-#qdlg .q-head, #hdlg .q-head, #xdlg .q-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+#qdlg .q-head, #xdlg .q-head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
 #qdlg #q { flex: 1; min-width: 0; margin: 0; }
-#qdlg .q-head button, #hdlg .q-head button, #xdlg .q-head button { flex: none; background: var(--bg); border-radius: 14px; padding: 12px 14px; }
+#qdlg .q-head button, #xdlg .q-head button { flex: none; background: var(--bg); border-radius: 14px; padding: 12px 14px; }
 #qdlg .hint, #hdlg .hint, #xdlg .hint { margin: 6px 4px 4px; }
 #q-list, #h-list, #x-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 4px; }
 
@@ -622,7 +620,6 @@ h2 { line-height: 1.4; }
 #cmp-s2 span, #cmp-s2 small { position: relative; display: block; }
 
 /* ---- 내역 더보기 ---- */
-#hdlg #h-title { flex: 1; font-size: 17px; padding: 0 4px; }
 #hist-open { display: block; width: 100%; margin: 14px 0 4px; padding: 13px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--primary); font-weight: 600; font-size: 14px; }
 #hist-open::after { content: ' ›'; }
 
@@ -674,3 +671,52 @@ h2 { line-height: 1.4; }
 .slegend li b { min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
 .slegend li.warn b { color: var(--out); }
 #au-version { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--sub); }
+
+/* 캘린더 알림 접이식 칸: 안쪽 줄들이 칸 양쪽에서 같은 간격을 두도록 (위의 .field 여백 초기화에 덮이지 않게 id로 지정) */
+#view-settings details.fold .fold-inner > * { margin-left: 16px; margin-right: 16px; }
+#view-settings details.fold .fold-inner > :last-child { margin-bottom: 14px; }
+#view-settings details.fold .row { margin-top: 6px; margin-bottom: 4px; }
+#view-settings details.fold .hint { margin-top: 10px; }
+/* 접이식 칸을 펼치면 제목과 안쪽 내용 사이에 가는 줄을 그어 구분한다 */
+#view-settings details.fold.show summary { border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+
+/* 접이식 칸(캘린더 알림, 자세히 보기)이 열리고 닫힐 때 높이가 부드럽게 변한다 (높이 0fr -> 1fr) */
+.fold-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s ease; }
+details.show > .fold-body { grid-template-rows: 1fr; }
+.fold-inner { min-height: 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .fold-body { transition: none; } }
+
+/* 설정의 선택 버튼 줄(결제일, 시작일, 알림 시점): 버튼 위아래로 여유를 둬서 줄끼리 붙어 보이지 않게 */
+#view-settings .panel .field { padding: 8px 0; min-height: 0; }
+#view-settings .panel .field .pick-btn { padding: 10px 16px; }
+
+/* ---- 이전 내역: 화면 전체 페이지 ---- */
+#hdlg.page { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: calc(8px + env(safe-area-inset-top)) 16px calc(8px + env(safe-area-inset-bottom)); border: 0; border-radius: 0; background: var(--bg); box-shadow: none; }
+#hdlg.page[open] { display: flex; flex-direction: column; animation: pg-in .24s ease both; }
+@keyframes pg-in { from { transform: translateX(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #hdlg.page[open] { animation: none; } }
+#hdlg .pg-top { flex: none; }
+#hdlg .pg-back { background: none; padding: 10px 6px; font-size: 16px; font-weight: 600; color: var(--primary); }
+#hdlg .pg-back i { font-style: normal; font-size: 22px; line-height: 1; margin-right: 2px; vertical-align: -1px; }
+#hdlg .pg-month { flex: none; display: flex; align-items: center; justify-content: center; gap: 18px; padding: 4px 0 6px; }
+#hdlg .pg-month b { min-width: 130px; text-align: center; font-size: 19px; }
+#hdlg .pg-month button { background: none; padding: 6px 12px; font-size: 24px; line-height: 1; color: var(--sub); }
+#hdlg .hint { flex: none; text-align: center; margin: 0 0 6px; }
+#hdlg #h-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 4px; }
+
+/* ---- 날짜 줄의 지출·수입, 이전 내역 맨 위의 수입·지출·합계 ---- */
+li.day .day-sums { display: flex; gap: 10px; }
+li.day .day-sum.in { color: var(--in); }
+#list li.day, #q-list li.day, #h-list li.day, #cal-list li.day { padding-right: 15px; }   /* 카드 안 금액과 오른쪽 끝을 맞춘다 */
+#hdlg .hint .hs-n { display: block; margin-bottom: 8px; font-size: 13px; color: var(--sub); }
+#hdlg .hs-cols { display: flex; justify-content: center; gap: 28px; }
+#hdlg .hs-cols small { display: block; font-size: 12px; color: var(--sub); }
+#hdlg .hs-cols b { display: block; margin-top: 2px; font-size: 16px; font-variant-numeric: tabular-nums; }
+#hdlg .hs-cols .o b { color: var(--out); }
+#hdlg .hs-cols .i b { color: var(--in); }
+
+/* ---- 정산(더치페이로 돌려받은 돈) ---- */
+#summary .s-main small { display: block; margin-top: 4px; font-size: 11.5px; color: var(--sub); }
+#stats li.settle { display: flex; justify-content: space-between; align-items: center; background: none; border: 1px dashed var(--line); font-size: 14px; color: var(--sub); }
+#stats li.settle b { color: var(--in); font-variant-numeric: tabular-nums; }
+#hdlg .hs-note { display: block; margin-top: 6px; font-size: 12px; color: var(--sub); }

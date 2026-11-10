@@ -24,7 +24,7 @@
 
 <main>
   <section id="summary">
-    <div class="s-main"><span>지출</span><b id="sum-out" class="out"></b></div>
+    <div class="s-main"><span>지출</span><b id="sum-out" class="out"></b><small id="sum-settle" hidden></small></div>
     <div class="s-sub">
       <div><span>수입</span><b id="sum-in" class="in"></b></div>
       <div><span>합계</span><b id="sum-bal"></b></div>
@@ -217,6 +217,11 @@
     <p class="won-read" id="amount-read" aria-live="polite"></p>
     <select id="category" hidden></select>
     <div id="cat-chips" class="chips" role="radiogroup" aria-label="카테고리"></div>
+    <div id="forcat-wrap" hidden>
+      <div class="cap">어떤 지출을 돌려받았나요? <small>(통계에서 그 카테고리에서 빼요)</small></div>
+      <select id="forcat" hidden></select>
+      <div id="forcat-chips" class="chips" role="radiogroup" aria-label="돌려받은 지출의 카테고리"></div>
+    </div>
     <input id="memo" type="text" placeholder="메모 (선택)" autocomplete="off">
     <button type="button" id="more-btn" aria-expanded="false" aria-controls="more">
       <span id="more-sum"></span><b>더보기</b><i class="chev" aria-hidden="true">›</i>
@@ -280,10 +285,15 @@
   <p class="hint">정해진 날짜가 되면 앱을 열 때 자동으로 내역에 추가돼요. 날짜 전에는 내역에 "예정"으로 보여요.</p>
 </dialog>
 
-<dialog id="hdlg" tabindex="-1">
-  <div class="q-head">
+<!-- 이전 내역: 화면 전체를 쓰는 페이지처럼 보이지만 dialog라서 뒤로가기·닫기·위에 뜨는 수정 창이 그대로 동작한다 -->
+<dialog id="hdlg" class="page" tabindex="-1" aria-label="이전 내역">
+  <div class="pg-top">
+    <button type="button" id="h-close" class="pg-back" aria-label="내역으로 돌아가기"><i aria-hidden="true">‹</i> 내역</button>
+  </div>
+  <div class="pg-month">
+    <button type="button" id="h-prev" aria-label="이전 달">‹</button>
     <b id="h-title"></b>
-    <button type="button" id="h-close">닫기</button>
+    <button type="button" id="h-next" aria-label="다음 달">›</button>
   </div>
   <p class="hint" id="h-sum"></p>
   <ul id="h-list"></ul>

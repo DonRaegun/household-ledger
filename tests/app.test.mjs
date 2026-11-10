@@ -363,3 +363,28 @@ test('문자 나누기: 도착 시각 줄은 뒤따르는 ●로 시작하는 �
   assert.equal(app.ctx.splitSms(text).length, 1);
   assert.equal(app.ctx.splitSms(text + '\n[알림 2026-11-03 13:05]\n4,500원 결제\n테스트카드 | 테스트카페(일시불)').length, 2);
 });
+
+test('합계: 정산(돌려받은 돈)은 지출과 수입에서 빼고, 합계는 그대로', () => {
+  const list = [
+    { type: 'out', amount: 60000, category: '식비' }, { type: 'out', amount: 4000, category: '교통' },
+    { type: 'in', amount: 2000000, category: '급여' }, { type: 'in', amount: 40000, category: '정산' },
+  ];
+  const t = app.run('totalsOf(' + JSON.stringify(list) + ')');
+  assert.deepEqual([t.out, t.inc, t.settle, t.netOut, t.netIn, t.bal], [64000, 2040000, 40000, 24000, 2000000, 1976000]);
+  const over = app.run("totalsOf([{ type: 'out', amount: 1000, category: '식비' }, { type: 'in', amount: 5000, category: '정산' }])");
+  assert.equal(over.netOut, 0);   // 돌려받은 돈이 지출보다 커도 지출은 0 아래로 내려가지 않는다
+});
+
+test('주별 지출: 실지출 보기는 그 주에 돌려받은 정산을 뺀다', () => {
+  const list = [
+    { type: 'out', amount: 60000, date: '2026-02-02', category: '식비' },
+    { type: 'in', amount: 40000, date: '2026-02-05', category: '정산' },      // 같은 주(1~7일)
+    { type: 'in', amount: 99999, date: '2026-02-06', category: '급여' },      // 정산이 아닌 수입은 빼지 않는다
+    { type: 'out', amount: 1000, date: '2026-02-20', category: '교통' },
+    { type: 'in', amount: 5000, date: '2026-02-21', category: '정산' },       // 지출보다 커도 0 아래로는 안 간다
+  ];
+  const gross = Array.from(app.run('weeklySpending(' + JSON.stringify(list) + ', new Date(2026, 1, 1))')).map((w) => w.sum);
+  const net = Array.from(app.run('weeklySpending(' + JSON.stringify(list) + ', new Date(2026, 1, 1), true)')).map((w) => w.sum);
+  assert.deepEqual(gross, [60000, 0, 1000, 0]);
+  assert.deepEqual(net, [20000, 0, 0, 0]);
+});

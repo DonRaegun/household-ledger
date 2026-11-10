@@ -46,9 +46,12 @@ function render() {
 
   const sum = (t) => period.filter((i) => i.type === t).reduce((s, i) => s + i.amount, 0);
   const inc = sum('in'), out = sum('out');
-  $('sum-in').textContent = won(inc);
-  $('sum-out').textContent = won(out);
-  $('sum-bal').textContent = won(inc - out);
+  const tot = totalsOf(period);   // 정산으로 돌려받은 돈은 지출에서 빼고, 수입에서도 뺀다
+  $('sum-in').textContent = won(tot.netIn);
+  $('sum-out').textContent = won(tot.netOut);
+  $('sum-bal').textContent = won(tot.bal);
+  $('sum-settle').hidden = !tot.settle;
+  $('sum-settle').textContent = tot.settle ? `정산으로 돌려받은 ${won(tot.settle)}을 뺀 금액이에요` : '';
   $('summary').hidden = tab !== 'list';   // 통계에서는 도넛 가운데에 총 지출이 있으니 같은 카드를 또 보여 주지 않는다
 
   $('view-list').hidden = tab !== 'list';
@@ -159,12 +162,15 @@ function dayHead(date, month) {
   const label = document.createElement('span');
   label.textContent = dayLabel(date);
   li.appendChild(label);
-  const out = month.reduce((s, i) => (i.date === date && i.type === 'out' ? s + i.amount : s), 0);
-  if (out) {
-    const sum = document.createElement('span');
-    sum.className = 'day-sum';
-    sum.textContent = '-' + won(out);
-    li.appendChild(sum);
+  // 그날의 지출(-)과 수입(+)을 둘 다 보여 준다. 수입만 있는 날도 비지 않는다
+  const sumOf = (t) => month.reduce((s, i) => (i.date === date && i.type === t ? s + i.amount : s), 0);
+  const out = sumOf('out'), inc = sumOf('in');
+  if (out || inc) {
+    const box = document.createElement('span');
+    box.className = 'day-sums';
+    if (out) { const e = document.createElement('span'); e.className = 'day-sum'; e.textContent = '-' + won(out); box.appendChild(e); }
+    if (inc) { const e = document.createElement('span'); e.className = 'day-sum in'; e.textContent = '+' + won(inc); box.appendChild(e); }
+    li.appendChild(box);
   }
   return li;
 }
@@ -197,9 +203,15 @@ function renderList(month) {
 // 이전 내역 창: 보고 있는 그 달의 내역 전체를 날짜별로 보여 준다
 function renderHistory() {
   const month = items.filter((i) => i.date.startsWith(ym(cur))).sort(byNewest);
-  const out = month.filter((i) => i.type === 'out').reduce((s, i) => s + i.amount, 0);
-  $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월 내역`;
-  $('h-sum').textContent = month.length ? `${month.length}건${out ? ` · 지출 ${won(out)}` : ''}` : '이 달에는 내역이 없어요.';
+  const tt = totalsOf(month);
+  const out = tt.netOut;
+  $('h-title').textContent = `${cur.getFullYear()}년 ${cur.getMonth() + 1}월`;
+  const inc = tt.netIn;
+  const col = (label, text, cls = '') => `<div class="${cls}"><small>${label}</small><b>${text}</b></div>`;
+  // 지출은 늘, 수입이 있는 달에는 수입과 합계도 같이 보여 준다
+  $('h-sum').innerHTML = month.length
+    ? `<span class="hs-n">${month.length}건</span><div class="hs-cols">${col('지출', won(out), 'o')}${inc ? col('수입', won(inc), 'i') : ''}${tt.inc ? col('합계', won(tt.bal)) : ''}</div>${tt.settle ? `<span class="hs-note">정산 ${won(tt.settle)}을 지출에서 뺐어요</span>` : ''}`
+    : '이 달에는 내역이 없어요.';
   const list = $('h-list');
   list.innerHTML = '';
   let last = '';
@@ -210,6 +222,22 @@ function renderHistory() {
 }
 $('hist-open').onclick = () => { renderHistory(); $('hdlg').showModal(); $('h-list').scrollTop = 0; };
 $('h-close').onclick = () => $('hdlg').close();
+// 페이지 안에서 달 넘기기: 화살표나 좌우로 밀기 (달이 바뀌면 뒤의 내역 화면도 같은 달이 된다)
+const histMove = (step) => { move(step); playIn($('h-list'), step > 0 ? 'from-right' : 'from-left'); };
+$('h-prev').onclick = () => histMove(-1);
+$('h-next').onclick = () => histMove(1);
+{
+  let hs = null;
+  const hl = $('h-list');
+  hl.addEventListener('touchstart', (e) => { const t = e.touches[0]; hs = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+  hl.addEventListener('touchend', (e) => {
+    if (!hs) return;
+    const t = e.changedTouches[0], dx = t.clientX - hs.x, dy = t.clientY - hs.y;
+    hs = null;
+    if (Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(dy) * 1.5) histMove(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  hl.addEventListener('touchcancel', () => { hs = null; }, { passive: true });
+}
 
 function renderCal(month) {
   const y = cur.getFullYear(), m = cur.getMonth();
@@ -336,7 +364,7 @@ function jumpCmp(idx) {   // 애니메이션 없이 칸 위치로 옮긴다 (옮
 
 // 비교 카드의 두 번째 칸: 주별(7일 단위) 지출 꺾은선 그래프. 월간 그래프와 같은 모양이고, 점을 누르면 그 주의 금액이 뜬다
 function renderWeekly() {
-  const weeks = weeklySpending(items, cur);
+  const weeks = weeklySpending(items, cur, statsHasSettle && statsNet);
   const t = today();
   const now = ym(cur) === t.slice(0, 7) ? weeks.find((w) => Number(t.slice(8)) >= w.from && Number(t.slice(8)) <= w.to) : null;
   const top = now || weeks.reduce((a, w) => (w.sum > a.sum ? w : a), weeks[0]);
@@ -378,12 +406,32 @@ function renderStats(period, out, yearView) {
   outs.forEach((i) => (byCat[i.category] = (byCat[i.category] || 0) + i.amount));
   const prevCat = previousByCategory(items, cur, yearView);
   const hasPrev = Object.keys(prevCat).length > 0;   // 비교할 지난 기간의 지출이 없으면 증감을 보여 주지 않는다
+  // 정산(더치페이로 돌려받은 돈) 여부와 실지출 보기 여부는 위쪽 카드의 그래프도 따르므로 먼저 정한다
+  const settleItems = period.filter((i) => i.type === 'in' && i.category === '정산');
+  const settleTotal = settleItems.reduce((s, i) => s + i.amount, 0);
+  statsHasSettle = settleTotal > 0;
+  const showNet = statsHasSettle && statsNet;
   renderCompare(out, yearView, byCat, prevCat);
+  // 정산(더치페이로 돌려받은 돈): 어떤 지출인지 정한 것은 그 카테고리에서 빼서 실지출로 보여 주고, 못 뺀 나머지는 목록 아래 한 줄로 알린다.
+  // 도넛 가운데를 누르면 총 지출(정산 전)로 바꿔 볼 수 있다
+  let leftover = 0;
+  if (showNet) {
+    const toCat = {};
+    settleItems.forEach((i) => { if (i.forCat) toCat[i.forCat] = (toCat[i.forCat] || 0) + i.amount; });
+    let deducted = 0;
+    for (const [c, a] of Object.entries(toCat)) {
+      const d = Math.min(a, byCat[c] || 0);
+      if (d) { byCat[c] -= d; deducted += d; if (byCat[c] === 0) delete byCat[c]; }
+    }
+    leftover = settleTotal - deducted;
+  }
+  const shownTotal = showNet ? Math.max(0, out - settleTotal) : out;   // 도넛 가운데에 보이는 값 (내역 요약의 지출과 같다)
   // 통계는 큰 카테고리(묶음)로 보여 주고, 고른 묶음 아래에 작은 카테고리를 펼친다
   const byGroup = {}, prevGroup = {};
   for (const [c, a] of Object.entries(byCat)) byGroup[groupOf(c)] = (byGroup[groupOf(c)] || 0) + a;
   for (const [c, a] of Object.entries(prevCat)) prevGroup[groupOf(c)] = (prevGroup[groupOf(c)] || 0) + a;
   const rows = Object.entries(byGroup).sort((a, b) => b[1] - a[1]);
+  const den = rows.reduce((s, [, a]) => s + a, 0) || 1;   // 비율의 바탕: 목록에 보이는 카테고리 합
   if (selCat && !byGroup[selCat]) selCat = null;
   // 지난 기간 대비 증감 (같은 날짜 기준으로 맞춘 값)
   const setDelta = (dl, amt, prev) => {
@@ -406,7 +454,7 @@ function renderStats(period, out, yearView) {
     if (cat === selCat) li.classList.add('sel');
     li.innerHTML = '<div class="top"><span class="name"><i class="dot"></i><em></em></span><span class="r"><b></b><small class="delta"></small></span></div><div class="bar"><i></i></div>';
     li.querySelector('.dot').style.background = groupColor(cat);
-    li.querySelector('em').textContent = `${cat} (${Math.round((amt / out) * 100)}%)`;
+    li.querySelector('em').textContent = `${cat} (${Math.round((amt / den) * 100)}%)`;
     li.querySelector('b').textContent = won(amt);
     setDelta(li.querySelector('.delta'), amt, prevGroup[cat]);
     const bar = li.querySelector('.bar i');
@@ -431,7 +479,16 @@ function renderStats(period, out, yearView) {
     }
     stats.appendChild(li);
   }
-  renderDonut(rows, out);
+  const note = showNet ? leftover : (statsHasSettle ? settleTotal : 0);   // 실지출 보기에서는 못 뺀 정산만, 총 지출 보기에서는 정산 전체를 참고로 보여 준다
+  if (note) {
+    const sl = document.createElement('li');
+    sl.className = 'settle';
+    sl.innerHTML = '<span></span><b></b>';
+    sl.querySelector('span').textContent = showNet ? '정산 (지출 카테고리를 정하지 않은 것)' : '정산으로 돌려받음';
+    sl.querySelector('b').textContent = '-' + won(note);
+    stats.appendChild(sl);
+  }
+  renderDonut(rows, den, shownTotal);
 
   // 결제수단별 합계 (결제수단이 없는 예전 내역은 '미지정')
   const byPay = { cash: 0, card: 0, transfer: 0, none: 0 };
@@ -471,7 +528,12 @@ function resetStatsAnim() {   // 통계에 다시 들어오면 그래프 효과�
 function renderYearBars(period) {
   const box = $('year-bars');
   const months = Array(12).fill(0);
+  const net = statsHasSettle && statsNet;   // 실지출 보기: 그 달에 돌려받은 정산을 뺀다
   period.filter((i) => i.type === 'out').forEach((i) => (months[Number(i.date.slice(5, 7)) - 1] += i.amount));
+  if (net) {
+    period.filter((i) => i.type === 'in' && i.category === '정산').forEach((i) => (months[Number(i.date.slice(5, 7)) - 1] -= i.amount));
+    months.forEach((v, k) => { months[k] = Math.max(0, v); });
+  }
   const thisYear = today().slice(0, 4) === String(cur.getFullYear());
   const nowM = thisYear ? Number(today().slice(5, 7)) - 1 : -1;
   const last = thisYear ? nowM : 11;   // 올해는 이번 달까지만 이어 그린다 (앞으로 올 달이 0원으로 떨어져 보이지 않게)
@@ -563,12 +625,13 @@ function drawArc(el, start, len) {
   el.setAttribute('stroke-dasharray', `${dash} ${DONUT_C}`);
   el.setAttribute('stroke-dashoffset', -start);
 }
-function renderDonut(rows, total) {
+function renderDonut(rows, total, shown = total) {
   const svg = $('donut');
   const sel = rows.find(([c]) => c === selCat);
-  $('donut-label').textContent = sel ? sel[0] : '총 지출';
-  countTo($('donut-total'), sel ? sel[1] : total, won);
-  $('donut-pct').textContent = sel ? `${Math.round((sel[1] / total) * 100)}%` : '';
+  $('donut-label').textContent = sel ? sel[0] : statsHasSettle && statsNet ? '실지출' : '총 지출';
+  countTo($('donut-total'), sel ? sel[1] : shown, won);
+  // 정산이 있는 기간에는 가운데를 눌러 총 지출과 실지출을 바꿔 볼 수 있다고 작게 알린다
+  $('donut-pct').textContent = sel ? `${Math.round((sel[1] / total) * 100)}%` : statsHasSettle ? (statsNet ? '눌러서 총 지출 보기' : '눌러서 실지출 보기') : '';
   if (!rows.length) {
     resetDonut();
     svg.innerHTML = `<circle cx="50" cy="50" r="${DONUT_R}" fill="none" stroke="var(--line)" stroke-width="16"/>`;

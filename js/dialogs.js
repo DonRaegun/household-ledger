@@ -19,7 +19,12 @@ function toggleCat(cat) {
 $('donut').addEventListener('click', (e) => {
   const s = e.target.closest('.slice');
   if (s) toggleCat(s.dataset.cat);
-  else if (selCat) { selCat = null; render(); }
+  else {
+    const b = $('donut').getBoundingClientRect();
+    const inHole = Math.hypot(e.clientX - (b.left + b.width / 2), e.clientY - (b.top + b.height / 2)) < b.width * 0.28;
+    if (inHole && statsHasSettle) { statsNet = !statsNet; render(); }   // 도넛 가운데: 총 지출 <-> 실지출
+    else if (selCat) { selCat = null; render(); }
+  }
 });
 $('stats').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-cat]');
@@ -160,7 +165,7 @@ $('mp-today').onclick = () => { cur = new Date(); cur.setDate(1); selCat = null;
 $('mp-close').onclick = () => $('mdlg').close();
 
 // 카테고리는 드롭다운 대신 버튼으로 모두 보여 줘서 한 번에 고른다 (값은 숨은 select가 들고 있다). 내역 추가와 고정지출 창이 같이 쓴다
-const CHIPS_OF = { category: 'cat-chips' };   // select id -> 버튼 묶음 id
+const CHIPS_OF = { category: 'cat-chips', forcat: 'forcat-chips' };   // select id -> 버튼 묶음 id
 function fillCategories(id, type, selected) {
   $(id).innerHTML = CATEGORIES[type].map((c) => `<option>${c}</option>`).join('');
   if (selected) $(id).value = selected;
@@ -169,7 +174,7 @@ function fillCategories(id, type, selected) {
 function renderCatChips(id = 'category') {
   const cur = $(id).value;
   $(CHIPS_OF[id]).innerHTML = Array.from($(id).options).map((o) =>
-    `<button type="button" role="radio" aria-checked="${o.value === cur}" data-cat="${o.value}" class="${o.value === cur ? 'on' : ''}">${o.value}</button>`).join('');
+    `<button type="button" role="radio" aria-checked="${o.value === cur}" data-cat="${o.value}" class="${o.value === cur ? 'on' : ''}">${o.textContent}</button>`).join('');
 }
 Object.entries(CHIPS_OF).forEach(([id, chipsId]) => $(chipsId).addEventListener('click', (e) => {
   const b = e.target.closest('button[data-cat]');
@@ -180,7 +185,19 @@ Object.entries(CHIPS_OF).forEach(([id, chipsId]) => $(chipsId).addEventListener(
     x.classList.toggle('on', on);
     x.setAttribute('aria-checked', String(on));
   });
+  if (id === 'category') syncForCat();
 }));
+
+// 정산(더치페이로 돌려받은 돈)을 고르면 '어떤 지출을 돌려받았나요?' 줄이 나온다. 기본값은 가장 최근에 쓴 지출의 카테고리
+function lastOutCategory() { const o = items.filter((i) => i.type === 'out').sort(byNewest)[0]; return o ? o.category : ''; }
+function fillForCat(selected) {
+  $('forcat').innerHTML = '<option value="">정하지 않음</option>' + CATEGORIES.out.map((c) => `<option>${c}</option>`).join('');
+  $('forcat').value = selected || '';
+  renderCatChips('forcat');
+}
+function syncForCat() {
+  $('forcat-wrap').hidden = !(document.querySelector('input[name=type]:checked').value === 'in' && $('category').value === '정산');
+}
 
 // 금액 입력: 쉼표를 붙여 주고, 입력칸 아래에 한글로 읽은 금액을 작게 보여 준다 (값을 코드로 바꿔 넣었을 때는 el.refreshRead()를 부른다)
 function bindMoney(el) {
@@ -203,6 +220,8 @@ function openDialog(item) {
   const type = item ? item.type : 'out';
   document.querySelector(`input[name=type][value=${type}]`).checked = true;
   fillCategories('category', type, item && item.category);
+  fillForCat(item ? item.forCat : lastOutCategory());
+  syncForCat();
   // 새 내역은 마지막에 쓴 결제수단이 기본값, 결제수단이 없는 예전 내역은 선택 없음으로 둔다
   const pay = item ? item.pay : settings.lastPay;
   document.querySelectorAll('input[name=pay]').forEach((r) => (r.checked = r.value === pay));
@@ -227,6 +246,7 @@ function openDialog(item) {
 document.querySelectorAll('input[name=type]').forEach((r) =>
   r.addEventListener('change', () => {
     fillCategories('category', r.value);
+    syncForCat();
     playIn($('cat-chips'), 'fade-in');
     $('pay-seg').hidden = r.value !== 'out';
     $('mood-seg').hidden = r.value !== 'out';
@@ -297,6 +317,7 @@ $('form').addEventListener('submit', () => {
     date: $('date').value || today(),
     time: type === 'out' ? $('time').value || undefined : undefined,
     memo: $('memo').value.trim(),
+    forCat: type === 'in' && $('category').value === '정산' && $('forcat').value ? $('forcat').value : undefined,
   };
   if (data.pay) { settings.lastPay = data.pay; saveSettings(); }
   if (editing) Object.assign(editing, data, { auto: undefined });   // 직접 확인하고 저장했으니 '자동' 표시는 뺀다
